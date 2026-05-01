@@ -1,0 +1,26 @@
+.git
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+
+# Go build artifacts
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go tooling/cache
+.coverage/
+*.cover
+vendor/
+
+# Logs and local env
+*.log
+.env
+.env.*

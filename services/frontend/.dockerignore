@@ -1,0 +1,17 @@
+.git
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+
+node_modules/
+dist/
+.vite/
+coverage/
+*.log
+
+.env
+.env.*
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
