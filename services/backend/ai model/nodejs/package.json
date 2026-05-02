@@ -1,0 +1,11 @@
+{
+  "name": "bebasqc-ai",
+  "version": "1.0.0",
+  "description": "BebasQC AI Models — Vision Defect Detector + Root Cause Analyzer",
+  "main": "bebasqc-ai.js",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node bebasqc-ai.js"
+  },
+  "license": "MIT"
+}
