@@ -1,0 +1,120 @@
+{
+  "name": "SmartVision_RCA_Official_Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "smartvision/detection",
+        "options": {}
+      },
+      "name": "SmartVision RCA INPUT",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.status}}",
+              "value2": "defect"
+            }
+          ],
+          "number": [
+            {
+              "value1": "={{$json.confidence}}",
+              "operation": "larger",
+              "value2": 0.8
+            }
+          ]
+        }
+      },
+      "name": "DECISION FILTER",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "ISI_CHAT_ID_TELEGRAM_KAMU",
+        "text": "=\ud83d\udea8 *SMARTVISION RCA ALERT* \ud83d\udea8\n\nDefect Detected!\n- Type: [{{$json.defect_type}}]\n- Confidence: [{{($json.confidence * 100).toFixed(0)}}]%\n- Product ID: [{{$json.product_id}}]\n\nSegera cek jalur conveyor!",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "name": "TELEGRAM ALERT",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        720,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.whatsapp-gateway.com/send",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"NOMOR_HP_OPERATOR\",\n  \"message\": \"\u26a0\ufe0f *SMARTVISION RCA ALERT* \u26a0\ufe0f\\n\\nDefect: {{$json.defect_type}}\\nConfidence: {{($json.confidence * 100).toFixed(0)}}%\"\n}",
+        "options": {}
+      },
+      "name": "WHATSAPP ALERT",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [
+        720,
+        380
+      ]
+    },
+    {
+      "parameters": {},
+      "name": "NO ACTION",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        720,
+        550
+      ]
+    }
+  ],
+  "connections": {
+    "SmartVision RCA INPUT": {
+      "main": [
+        [
+          {
+            "node": "DECISION FILTER",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DECISION FILTER": {
+      "main": [
+        [
+          {
+            "node": "TELEGRAM ALERT",
+            "index": 0
+          },
+          {
+            "node": "WHATSAPP ALERT",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "NO ACTION",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

@@ -25,3 +25,7 @@ Thumbs.db
 
 # Build artifacts
 *.zip
+
+# Runtime data
+docker/hivemq/data/
+docker/hivemq/log/

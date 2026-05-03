@@ -1,6 +1,6 @@
 # Bebas QC
 
-Full-stack app with a Go API, a React/Vite frontend, Postgres, and Nginx.
+Full-stack app with a Go API, a React/Vite frontend, Postgres, Redis, HiveMQ (MQTT), n8n, and Nginx.
 
 ## Prerequisites
 
@@ -68,6 +68,11 @@ Endpoints:
 - App: http://localhost
 - API (via Nginx): http://localhost/api/
 - Direct API: http://localhost:8080
+- Redis: localhost:6379
+- HiveMQ MQTT: tcp://localhost:1883
+- HiveMQ WebSocket: ws://localhost:8000/mqtt
+- HiveMQ UI: http://localhost:8090
+- n8n: http://localhost:5678
 
 ## Ports
 
@@ -75,11 +80,21 @@ Endpoints:
 - 3000: Frontend container (Nginx serving the built app)
 - 8080: Backend API
 - 5432: Postgres
+- 6379: Redis
+- 1883: HiveMQ MQTT
+- 8000: HiveMQ WebSocket
+- 8090: HiveMQ UI
+- 5678: n8n
+
+## n8n notes
+
+The n8n container uses basic auth credentials from docker-compose. Change them before sharing publicly.
 
 ## Docker configuration
 
 - [docker-compose.yml](docker-compose.yml)
 - [docker/nginx/nginx.conf](docker/nginx/nginx.conf) (routes `/` to frontend, `/api/` to backend)
+- [docker/hivemq/config/config.xml](docker/hivemq/config/config.xml) (MQTT + WebSocket listeners)
 - [services/frontend/nginx.conf](services/frontend/nginx.conf) (SPA routing + `/api/` proxy)
 - [services/backend/Dockerfile](services/backend/Dockerfile)
 - [services/frontend/Dockerfile](services/frontend/Dockerfile)

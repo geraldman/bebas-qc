@@ -66,8 +66,64 @@ services:
     networks:
       - bebasqc_network
 
+  redis:
+    image: redis:7-alpine
+    container_name: bebasqc_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - bebasqc_network
+  
+  hivemq:
+    image: hivemq/hivemq-ce:latest
+    container_name: bebasqc_hivemq
+    ports:
+      - "1883:1883"     # MQTT
+      - "8000:8000"     # WebSocket
+      - "8090:8080"     # HiveMQ Web UI (optional, remove if conflicts with backend)
+    volumes:
+      - ./docker/hivemq/config/config.xml:/opt/hivemq/conf/config.xml
+      - ./docker/hivemq/data:/opt/hivemq/data
+      - ./docker/hivemq/log:/opt/hivemq/log
+    environment:
+      - HIVEMQ_ALLOW_ALL_CONNECTIONS=true   # pls change/config it before prod
+    networks:
+      - bebasqc_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: bebasqc_n8n
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=Asia/Jakarta
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=bebasqc123
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      - postgres
+    networks:
+      - bebasqc_network
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  redis_data:
+  n8n_data:
 
 networks:
   bebasqc_network:
