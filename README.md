@@ -1,85 +1,70 @@
-# Bebas QC
+# BebasQC — Standalone (run di workspace sendiri)
 
-Full-stack app with a Go API, a React/Vite frontend, Postgres, and Nginx.
+IoT + AI Defect Detection + RCA. Frontend: TanStack Start + React + Tailwind. Backend: Supabase (DB + Edge Functions).
 
-## Prerequisites
+## 1. Setup Supabase project (gratis di supabase.com)
 
-- Go (see version in [services/backend/go.mod](services/backend/go.mod))
-- Node.js 20.x and npm
-- Docker + Docker Compose (for containerized workflow)
+1. Buat project baru di https://supabase.com
+2. SQL Editor → jalankan isi file `supabase/migrations/*.sql` (bikin tabel `detections` + `sensor_logs`)
+3. Project Settings → API → copy `Project URL` dan `anon public key`
 
-## Environment
+## 2. Environment variables
 
-1. Copy [.env.example](.env.example) to `.env`.
-2. Fill in values:
-	- `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB`
-	- `POSTGRES_HOST` (use `postgres` for Docker, `localhost` for local)
-	- `POSTGRES_PORT` (default `5432`)
-	- `BACKEND_PORT` (default `8080`)
-	- `USE_SUPABASE` (`true` or `false`)
-	- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+Bikin file `.env` di root:
 
-## Database provider toggle
-
-Set `USE_SUPABASE=true` to switch to Supabase config. When `USE_SUPABASE=false`, the backend uses Postgres config. Both can exist in `.env` and you can flip the flag as needed.
-
-### Supabase setup (optional)
-
-1. Create a project in Supabase.
-2. In **Project Settings -> API**, copy the **Project URL** and keys.
-3. Set `SUPABASE_URL` to the base URL (no `/rest/v1` suffix).
-4. Use the anon key in frontend apps; use the service role key only on the backend.
-
-### Postgres notes
-
-`POSTGRES_DB` is created on first container init. If you change it later, recreate the volume:
-
-```sh
-docker compose down -v
-docker compose up --build
+```env
+VITE_SUPABASE_URL=https://xxxxx.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbGc...   # anon key
+VITE_SUPABASE_PROJECT_ID=xxxxx
 ```
 
-## Local development
+## 3. Install & run
 
-Backend (Go):
-
-```sh
-cd services/backend
-go mod download
-go run ./cmd/main.go
+```bash
+bun install   # atau: npm install
+bun dev       # buka http://localhost:8080
 ```
 
-Frontend (Vite):
+## 4. Deploy edge functions (untuk fitur AI Detect & RCA)
 
-```sh
-cd services/frontend
-npm install
-npm run dev
+Install Supabase CLI: https://supabase.com/docs/guides/cli
+
+```bash
+supabase login
+supabase link --project-ref <PROJECT_ID_KAMU>
+
+# Set API key — pilih SALAH SATU (urutan prioritas: GEMINI > OPENAI > DEEPSEEK)
+supabase secrets set GEMINI_API_KEY=...        # https://aistudio.google.com/apikey  (RECOMMENDED, free tier, support vision)
+# atau
+supabase secrets set OPENAI_API_KEY=...        # https://platform.openai.com/api-keys
+# DeepSeek hanya untuk RCA (tidak support vision):
+supabase secrets set DEEPSEEK_API_KEY=...
+
+# Deploy
+supabase functions deploy detect-defect --no-verify-jwt
+supabase functions deploy root-cause --no-verify-jwt
 ```
 
-## Docker (full stack)
+## 5. Tes ESP32 (optional)
 
-```sh
-docker compose up --build
+Dashboard → toggle "Live MQTT". ESP32 publish JSON ke topic `iot/smartvision` di broker `broker.hivemq.com:8884` (WSS).
+
+Format payload:
+```json
+{ "temp_dht": 28.5, "humidity": 65, "temp_ds": 45.2, "distance": 30, "vibration": 1.2 }
 ```
 
-Endpoints:
+## Halaman
 
-- App: http://localhost
-- API (via Nginx): http://localhost/api/
-- Direct API: http://localhost:8080
+- `/` — Dashboard sensor real-time + anomaly alerts
+- `/detect` — Upload foto produk → AI defect detection
+- `/rca` — Root cause analysis 5-Why
+- `/history` — Riwayat deteksi (dari Supabase)
 
-## Ports
+## Catatan
 
-- 80: Nginx reverse proxy
-- 3000: Frontend container (Nginx serving the built app)
-- 8080: Backend API
-- 5432: Postgres
-
-## Docker configuration
-
-- [docker-compose.yml](docker-compose.yml)
-- [docker/nginx/nginx.conf](docker/nginx/nginx.conf) (routes `/` to frontend, `/api/` to backend)
-- [services/frontend/nginx.conf](services/frontend/nginx.conf) (SPA routing + `/api/` proxy)
-- [services/backend/Dockerfile](services/backend/Dockerfile)
-- [services/frontend/Dockerfile](services/frontend/Dockerfile)
+- **Gemini** direkomendasikan: gratis tier-nya, support vision untuk `/detect`.
+- **DeepSeek** murah, tapi tidak support vision → hanya RCA (`/rca`) yang jalan.
+- Untuk **OpenAI**, gunakan `gpt-4o-mini` (sudah dikonfigurasi di edge function).
+- Edit prompt AI di `supabase/functions/*/index.ts` lalu redeploy.
+- Untuk ganti backend ke self-hosted (Postgres + Mosquitto + Python API), set `VITE_BACKEND_MODE=bebasqc` (lihat `src/lib/config.ts`).
