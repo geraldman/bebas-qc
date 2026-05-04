@@ -38,8 +38,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      hivemq:
+        condition: service_started
     networks:
       - bebasqc_network
+    restart: unless-stopped
   
   frontend:
     build:
@@ -52,6 +55,7 @@ services:
       - backend
     networks:
       - bebasqc_network
+    restart: unless-stopped
   
   nginx:
     image: nginx:alpine
@@ -65,6 +69,7 @@ services:
       - backend
     networks:
       - bebasqc_network
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -82,7 +87,6 @@ services:
     ports:
       - "1883:1883"     # MQTT
       - "8000:8000"     # WebSocket
-      - "8090:8080"     # HiveMQ Web UI (optional, remove if conflicts with backend)
     volumes:
       - ./docker/hivemq/config/config.xml:/opt/hivemq/conf/config.xml
       - ./docker/hivemq/data:/opt/hivemq/data
@@ -119,6 +123,18 @@ services:
     networks:
       - bebasqc_network
     restart: unless-stopped
+
+  mqtt-simulator: # this is used to simulate the inputs for the model
+    build:
+      context: ./services/mqtt-simulator
+      dockerfile: Dockerfile
+    container_name: bebasqc_mqtt_simulator
+    ports:
+      - "4000:80"
+    depends_on:
+      - hivemq
+    networks:
+      - bebasqc_network
 
 volumes:
   postgres_data:

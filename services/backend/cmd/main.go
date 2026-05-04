@@ -1,47 +1,54 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
 	"log"
-	"net/http"
+	"os"
 
-	"github.com/geraldman/bebas-qc/backend/internal/config"
+	appdb "github.com/geraldman/bebas-qc/backend/db"
+	"github.com/geraldman/bebas-qc/backend/mqtt"
+	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
-func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
-	// Set the content type to JSON
-	w.Header().Set("Content-Type", "application/json")
-	
-	// Create a simple status map
-	response := map[string]string{"status": "UP"}
-
-	// Set status code to 200 OK
-	w.WriteHeader(http.StatusOK)
-
-	// Encode and send the response
-	json.NewEncoder(w).Encode(response)
-}
-
 func main() {
-	cfg, err := config.Load()
+	// Load .env in development
+	godotenv.Load()
+
+	// Connect to PostgreSQL
+	database, err := appdb.Connect()
 	if err != nil {
-		log.Fatalf("config error: %s", err)
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer database.Close()
+	log.Println("Connected to PostgreSQL")
+
+	// Start MQTT processor (non-blocking, runs in background)
+	processor := mqtt.NewProcessor(database)
+	go processor.Start()
+
+	// Start HTTP API
+	r := gin.Default()
+
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "ok"})
+	})
+
+	// Recent sensor readings per machine
+	r.GET("/readings/:machine_id", func(c *gin.Context) {
+		machineID := c.Param("machine_id")
+		readings, err := appdb.GetRecentReadings(database, machineID, 50)
+		if err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(200, readings)
+	})
+
+	port := os.Getenv("BACKEND_PORT")
+	if port == "" {
+		port = "8080"
 	}
 
-	if cfg.UseSupabase {
-		log.Println("Database provider: supabase")
-	} else {
-		log.Println("Database provider: postgres")
-	}
-
-	// Register the handler for the /health route
-	http.HandleFunc("/", healthCheckHandler)
-
-	fmt.Println("Server starting on :8080...")
-	
-	// Start the server
-	if err := http.ListenAndServe(":8080", nil); err != nil {
-		fmt.Printf("Server failed: %s\n", err)
-	}
+	log.Printf("HTTP server starting on port %s", port)
+	r.Run(":" + port)
 }

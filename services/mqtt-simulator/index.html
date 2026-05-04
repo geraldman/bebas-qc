@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bebas QC — IoT Simulator</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.0.3/mqtt.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      color: #63b3ed;
+      margin-bottom: 4px;
+    }
+
+    .subtitle {
+      font-size: 0.85rem;
+      color: #718096;
+      margin-bottom: 24px;
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #1a1d27;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 10px 16px;
+      margin-bottom: 24px;
+      font-size: 0.85rem;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #fc8181;
+      flex-shrink: 0;
+    }
+
+    .dot.connected { background: #68d391; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .card {
+      background: #1a1d27;
+      border: 1px solid #2d3748;
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .card h2 {
+      font-size: 0.95rem;
+      color: #90cdf4;
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .badge {
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #2d3748;
+      color: #a0aec0;
+    }
+
+    .badge.fault { background: #742a2a; color: #fc8181; }
+    .badge.ok    { background: #1c4532; color: #68d391; }
+
+    .field {
+      margin-bottom: 14px;
+    }
+
+    .field label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: #a0aec0;
+      margin-bottom: 6px;
+    }
+
+    .field label span {
+      color: #f6e05e;
+      font-weight: 600;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #63b3ed;
+      cursor: pointer;
+    }
+
+    .fault-toggle {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    .fault-btn {
+      padding: 5px 12px;
+      border-radius: 6px;
+      border: 1px solid #4a5568;
+      background: #2d3748;
+      color: #a0aec0;
+      cursor: pointer;
+      font-size: 0.78rem;
+      transition: all 0.15s;
+    }
+
+    .fault-btn:hover   { border-color: #63b3ed; color: #63b3ed; }
+    .fault-btn.active  { background: #742a2a; border-color: #fc8181; color: #fc8181; }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    button.primary {
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      background: #3182ce;
+      color: white;
+      cursor: pointer;
+      font-size: 0.88rem;
+      font-weight: 600;
+      transition: background 0.15s;
+    }
+
+    button.primary:hover    { background: #2b6cb0; }
+    button.primary:disabled { background: #2d3748; color: #718096; cursor: not-allowed; }
+
+    button.danger {
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      background: #742a2a;
+      color: #fc8181;
+      cursor: pointer;
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
+
+    button.secondary {
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: 1px solid #4a5568;
+      background: transparent;
+      color: #a0aec0;
+      cursor: pointer;
+      font-size: 0.88rem;
+    }
+
+    .log {
+      background: #0d1117;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 14px;
+      height: 200px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.78rem;
+    }
+
+    .log-entry        { margin-bottom: 4px; color: #a0aec0; }
+    .log-entry.ok     { color: #68d391; }
+    .log-entry.fault  { color: #fc8181; }
+    .log-entry.info   { color: #63b3ed; }
+    .log-entry.warn   { color: #f6e05e; }
+
+    .interval-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      font-size: 0.85rem;
+      color: #a0aec0;
+    }
+
+    .interval-row input[type="number"] {
+      width: 70px;
+      padding: 6px 10px;
+      background: #1a1d27;
+      border: 1px solid #4a5568;
+      border-radius: 6px;
+      color: #e2e8f0;
+      font-size: 0.85rem;
+    }
+
+    .topic-label {
+      font-size: 0.72rem;
+      color: #4a5568;
+      margin-top: 8px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>⚙️ Bebas QC — IoT Simulator</h1>
+  <p class="subtitle">Control simulated sensor data published to HiveMQ via WebSocket</p>
+
+  <!-- Connection status -->
+  <div class="status-bar">
+    <div class="dot" id="dot"></div>
+    <span id="status-text">Disconnected</span>
+    <span style="margin-left:auto; color:#4a5568; font-family:monospace" id="broker-label"></span>
+  </div>
+
+  <!-- Machine cards -->
+  <div class="grid" id="machine-grid"></div>
+
+  <!-- Interval control -->
+  <div class="interval-row">
+    <label>Publish interval:</label>
+    <input type="number" id="interval-input" value="2000" min="500" max="10000" step="500"/>
+    <span>ms</span>
+  </div>
+
+  <!-- Actions -->
+  <div class="actions">
+    <button class="primary" id="btn-start">▶ Start Publishing</button>
+    <button class="danger"  id="btn-stop" disabled>■ Stop</button>
+    <button class="secondary" id="btn-publish-once">Publish Once</button>
+    <button class="secondary" id="btn-clear-log">Clear Log</button>
+  </div>
+
+  <!-- Log -->
+  <div class="log" id="log"></div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+const BROKER_WS = "ws://localhost:8000/mqtt";
+
+const MACHINES = [
+  { id: "LINE1_STN1", label: "Line 1 — Conveyor",  topic: "bebasqc/line1/station1/sensors",
+    defaults: { temperature: 68, humidity: 60, vibration: 0.6, belt_speed: 120 } },
+  { id: "LINE1_STN2", label: "Line 1 — Labeler",   topic: "bebasqc/line1/station2/sensors",
+    defaults: { temperature: 55, humidity: 58, vibration: 0.4, belt_speed: 115 } },
+  { id: "LINE2_STN1", label: "Line 2 — Filler",    topic: "bebasqc/line2/station1/sensors",
+    defaults: { temperature: 72, humidity: 62, vibration: 0.7, belt_speed: 110 } },
+  { id: "LINE2_STN2", label: "Line 2 — Sealer",    topic: "bebasqc/line2/station2/sensors",
+    defaults: { temperature: 85, humidity: 55, vibration: 0.5, belt_speed: 118 } },
+];
+
+const FAULTS = ["high_vibration", "overheating", "speed_drop", "label_misalign"];
+
+const AUTOPILOT_MS = 1200;
+const DRIFT_RANGE = {
+  temperature: 1.2,
+  humidity: 2,
+  vibration: 0.08,
+  belt_speed: 2,
+};
+
+const RCA_LIMITS = {
+  temperature: 90,
+  vibration: 1.5,
+  belt_speed: 70,
+};
+
+const NORMAL_BOUNDS = {
+  temperature: [55, 85],
+  humidity: [45, 75],
+  vibration: [0.2, 1.2],
+  belt_speed: [90, 140],
+};
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let client       = null;
+let publishing   = false;
+let intervalId   = null;
+let cycle        = 0;
+let activeFaults = {}; // { machineId: faultName | null }
+const machineState = {};
+
+const SENSOR_KEY = {
+  temp: "temperature",
+  humidity: "humidity",
+  vibration: "vibration",
+  belt_speed: "belt_speed",
+};
+
+MACHINES.forEach(m => activeFaults[m.id] = null);
+MACHINES.forEach(m => machineState[m.id] = { ...m.defaults });
+
+// ─── BUILD UI ─────────────────────────────────────────────────────────────────
+function buildCards() {
+  const grid = document.getElementById("machine-grid");
+
+  MACHINES.forEach(machine => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.id = `card-${machine.id}`;
+
+    card.innerHTML = `
+      <h2>
+        ${machine.label}
+        <span class="badge ok" id="badge-${machine.id}">OK</span>
+      </h2>
+
+      <div class="field">
+        <label>Temperature (°C) <span id="val-temp-${machine.id}">${machine.defaults.temperature}</span></label>
+        <input type="range" id="temp-${machine.id}"
+          min="30" max="120" step="0.5" value="${machine.defaults.temperature}"
+          oninput="updateLabel('temp','${machine.id}',this.value)"/>
+      </div>
+
+      <div class="field">
+        <label>Humidity (%) <span id="val-humidity-${machine.id}">${machine.defaults.humidity}</span></label>
+        <input type="range" id="humidity-${machine.id}"
+          min="20" max="100" step="1" value="${machine.defaults.humidity}"
+          oninput="updateLabel('humidity','${machine.id}',this.value)"/>
+      </div>
+
+      <div class="field">
+        <label>Vibration (mm/s) <span id="val-vibration-${machine.id}">${machine.defaults.vibration}</span></label>
+        <input type="range" id="vibration-${machine.id}"
+          min="0" max="3" step="0.05" value="${machine.defaults.vibration}"
+          oninput="updateLabel('vibration','${machine.id}',this.value)"/>
+      </div>
+
+      <div class="field">
+        <label>Belt Speed (items/min) <span id="val-belt_speed-${machine.id}">${machine.defaults.belt_speed}</span></label>
+        <input type="range" id="belt_speed-${machine.id}"
+          min="50" max="200" step="1" value="${machine.defaults.belt_speed}"
+          oninput="updateLabel('belt_speed','${machine.id}',this.value)"/>
+      </div>
+
+      <div class="field">
+        <label>Inject Fault</label>
+        <div class="fault-toggle">
+          <button class="fault-btn" onclick="toggleFault('${machine.id}', null)">None</button>
+          ${FAULTS.map(f => `
+            <button class="fault-btn" id="fault-${machine.id}-${f}"
+              onclick="toggleFault('${machine.id}','${f}')">${f.replace(/_/g,' ')}
+            </button>`).join('')}
+        </div>
+      </div>
+
+      <p class="topic-label">→ ${machine.topic}</p>
+    `;
+
+    grid.appendChild(card);
+  });
+}
+
+function updateLabel(sensor, machineId, value) {
+  const key = SENSOR_KEY[sensor] || sensor;
+  const num = parseFloat(value);
+  if (machineState[machineId]) {
+    machineState[machineId][key] = num;
+  }
+
+  document.getElementById(`val-${sensor}-${machineId}`).textContent =
+    num.toFixed(sensor === "belt_speed" ? 0 : 2);
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function randInRange(range) {
+  return (Math.random() * 2 - 1) * range;
+}
+
+function syncInput(machineId, sensor, value) {
+  const input = document.getElementById(`${sensor}-${machineId}`);
+  if (!input) return;
+  input.value = value;
+  updateLabel(sensor, machineId, value);
+}
+
+function getSensorBounds(machineId, sensor, input) {
+  const min = Number(input.min);
+  const max = Number(input.max);
+  const fault = activeFaults[machineId];
+
+  if (fault === "overheating" && sensor === "temperature") {
+    return [Math.max(RCA_LIMITS.temperature + 5, min), max];
+  }
+  if (fault === "high_vibration" && sensor === "vibration") {
+    return [Math.max(RCA_LIMITS.vibration + 0.3, min), max];
+  }
+  if (fault === "speed_drop" && sensor === "belt_speed") {
+    return [min, Math.min(RCA_LIMITS.belt_speed - 5, max)];
+  }
+
+  const normal = NORMAL_BOUNDS[sensor];
+  if (normal) {
+    return [Math.max(normal[0], min), Math.min(normal[1], max)];
+  }
+
+  return [min, max];
+}
+
+function applyDrift() {
+  const active = document.activeElement;
+  if (active && active.tagName === "INPUT" && active.type === "range") {
+    return;
+  }
+
+  MACHINES.forEach(machine => {
+    const state = machineState[machine.id];
+    if (!state) return;
+
+    const tempInput = document.getElementById(`temp-${machine.id}`);
+    const humidityInput = document.getElementById(`humidity-${machine.id}`);
+    const vibrationInput = document.getElementById(`vibration-${machine.id}`);
+    const speedInput = document.getElementById(`belt_speed-${machine.id}`);
+    if (!tempInput || !humidityInput || !vibrationInput || !speedInput) return;
+
+    const [tempMin, tempMax] = getSensorBounds(machine.id, "temperature", tempInput);
+    const [humMin, humMax] = getSensorBounds(machine.id, "humidity", humidityInput);
+    const [vibMin, vibMax] = getSensorBounds(machine.id, "vibration", vibrationInput);
+    const [speedMin, speedMax] = getSensorBounds(machine.id, "belt_speed", speedInput);
+
+    const nextTemp = clamp(
+      state.temperature + randInRange(DRIFT_RANGE.temperature),
+      tempMin,
+      tempMax
+    );
+    const nextHumidity = clamp(
+      state.humidity + randInRange(DRIFT_RANGE.humidity),
+      humMin,
+      humMax
+    );
+    const nextVibration = clamp(
+      state.vibration + randInRange(DRIFT_RANGE.vibration),
+      vibMin,
+      vibMax
+    );
+    const nextSpeed = clamp(
+      state.belt_speed + randInRange(DRIFT_RANGE.belt_speed),
+      speedMin,
+      speedMax
+    );
+
+    syncInput(machine.id, "temp", nextTemp);
+    syncInput(machine.id, "humidity", nextHumidity);
+    syncInput(machine.id, "vibration", nextVibration);
+    syncInput(machine.id, "belt_speed", nextSpeed);
+  });
+}
+
+function toggleFault(machineId, fault) {
+  activeFaults[machineId] = fault;
+
+  // Update button states
+  FAULTS.forEach(f => {
+    const btn = document.getElementById(`fault-${machineId}-${f}`);
+    if (btn) btn.classList.toggle("active", f === fault);
+  });
+
+  // Update badge
+  const badge = document.getElementById(`badge-${machineId}`);
+  if (fault) {
+    badge.textContent  = fault.replace(/_/g, ' ');
+    badge.className    = "badge fault";
+  } else {
+    badge.textContent  = "OK";
+    badge.className    = "badge ok";
+  }
+
+  log(fault
+    ? `[FAULT] ${machineId} → injecting: ${fault}`
+    : `[OK]    ${machineId} → fault cleared`,
+    fault ? "fault" : "ok"
+  );
+}
+
+// ─── MQTT ─────────────────────────────────────────────────────────────────────
+function connect() {
+  document.getElementById("broker-label").textContent = BROKER_WS;
+
+  client = mqtt.connect(BROKER_WS, {
+    clientId: `bebasqc_simulator_${Math.random().toString(16).slice(2,8)}`,
+    clean: true,
+    reconnectPeriod: 2000,
+  });
+
+  client.on("connect", () => {
+    setStatus(true);
+    log(`Connected to ${BROKER_WS}`, "info");
+  });
+
+  client.on("error", (err) => {
+    log(`Connection error: ${err.message}`, "warn");
+  });
+
+  client.on("offline", () => {
+    setStatus(false);
+    log("Broker offline or unreachable", "warn");
+  });
+
+  client.on("reconnect", () => {
+    log("Reconnecting...", "warn");
+  });
+}
+
+function setStatus(connected) {
+  document.getElementById("dot").className       = connected ? "dot connected" : "dot";
+  document.getElementById("status-text").textContent = connected ? "Connected" : "Disconnected";
+}
+
+// ─── PUBLISH ──────────────────────────────────────────────────────────────────
+function buildPayload(machine) {
+  const get = (id) => parseFloat(document.getElementById(id).value);
+
+  let temperature = get(`temp-${machine.id}`);
+  let humidity    = get(`humidity-${machine.id}`);
+  let vibration   = get(`vibration-${machine.id}`);
+  let belt_speed  = get(`belt_speed-${machine.id}`);
+  let fault       = activeFaults[machine.id];
+  let defects     = 0;
+
+  // Apply fault overrides
+  if (fault === "high_vibration") { vibration  = 2.0 + Math.random() * 0.5; defects = Math.ceil(Math.random() * 3); }
+  if (fault === "overheating")    { temperature = temperature + 25 + Math.random() * 10; defects = Math.ceil(Math.random() * 2); }
+  if (fault === "speed_drop")     { belt_speed  = belt_speed * 0.55; defects = Math.ceil(Math.random() * 4); }
+  if (fault === "label_misalign") { defects = Math.ceil(Math.random() * 3); }
+
+  return {
+    machine_id:   machine.id,
+    machine_type: machine.label.split("—")[1].trim().toLowerCase(),
+    temperature:  parseFloat(temperature.toFixed(2)),
+    humidity:     parseFloat(humidity.toFixed(2)),
+    vibration:    parseFloat(vibration.toFixed(3)),
+    belt_speed:   parseFloat(belt_speed.toFixed(1)),
+    defect_count: defects,
+    fault:        fault || null,
+    timestamp:    new Date().toISOString(),
+    cycle:        ++cycle,
+  };
+}
+
+function publishAll() {
+  if (!client || !client.connected) {
+    log("Not connected to broker", "warn");
+    return;
+  }
+
+  MACHINES.forEach(machine => {
+    const payload = buildPayload(machine);
+    client.publish(machine.topic, JSON.stringify(payload), { qos: 1 });
+
+    const status = payload.fault ? "fault" : "ok";
+    const label  = payload.fault ? `[FAULT: ${payload.fault}]` : "[OK]";
+    log(`${label} ${machine.id} | temp=${payload.temperature}°C ` +
+        `vib=${payload.vibration} speed=${payload.belt_speed} ` +
+        `defects=${payload.defect_count}`, status);
+  });
+}
+
+// ─── CONTROLS ─────────────────────────────────────────────────────────────────
+document.getElementById("btn-start").addEventListener("click", () => {
+  if (publishing) return;
+  publishing = true;
+
+  const ms = parseInt(document.getElementById("interval-input").value) || 2000;
+  publishAll();
+  intervalId = setInterval(publishAll, ms);
+
+  document.getElementById("btn-start").disabled = true;
+  document.getElementById("btn-stop").disabled  = false;
+  log(`Auto-publishing every ${ms}ms`, "info");
+});
+
+document.getElementById("btn-stop").addEventListener("click", () => {
+  clearInterval(intervalId);
+  publishing = false;
+  document.getElementById("btn-start").disabled = false;
+  document.getElementById("btn-stop").disabled  = true;
+  log("Publishing stopped", "info");
+});
+
+document.getElementById("btn-publish-once").addEventListener("click", publishAll);
+
+document.getElementById("btn-clear-log").addEventListener("click", () => {
+  document.getElementById("log").innerHTML = "";
+});
+
+// ─── LOG ──────────────────────────────────────────────────────────────────────
+function log(message, type = "") {
+  const logEl  = document.getElementById("log");
+  const entry  = document.createElement("div");
+  const time   = new Date().toLocaleTimeString();
+  entry.className = `log-entry ${type}`;
+  entry.textContent = `[${time}] ${message}`;
+  logEl.appendChild(entry);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+buildCards();
+connect();
+setInterval(applyDrift, AUTOPILOT_MS);
+</script>
+</body>
+</html>
