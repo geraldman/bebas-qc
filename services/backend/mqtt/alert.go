@@ -26,25 +26,42 @@ const alertCooldown = 10 * time.Second
 
 var alertMu sync.Mutex
 var lastAlertAt time.Time
+var alertInFlight bool
 
-func shouldThrottleAlert(now time.Time) bool {
+func beginAlert(now time.Time) bool {
 	alertMu.Lock()
 	defer alertMu.Unlock()
 
+	if alertInFlight {
+		return false
+	}
 	if !lastAlertAt.IsZero() && now.Sub(lastAlertAt) < alertCooldown {
-		return true
+		return false
 	}
 
-	lastAlertAt = now
-	return false
+	alertInFlight = true
+	return true
+}
+
+func finishAlert(sent bool) {
+	alertMu.Lock()
+	defer alertMu.Unlock()
+
+	alertInFlight = false
+	if sent {
+		lastAlertAt = time.Now().UTC()
+	}
 }
 
 func triggerAlert(sensor models.SensorPayload, result models.RCAResult, rcaID int) {
 	now := time.Now().UTC()
-	if shouldThrottleAlert(now) {
-		log.Printf("[ALERT] Cooldown active, skipping n8n trigger for machine=%s", result.MachineID)
+	if !beginAlert(now) {
+		log.Printf("[ALERT] Cooldown/in-flight active, skipping n8n trigger for machine=%s", result.MachineID)
 		return
 	}
+	defer func() {
+		finishAlert(false)
+	}()
 
 	n8nURL := os.Getenv("N8N_WEBHOOK_URL")
 	if n8nURL == "" {
@@ -69,6 +86,7 @@ func triggerAlert(sensor models.SensorPayload, result models.RCAResult, rcaID in
 		return
 	}
 	defer resp.Body.Close()
+	finishAlert(true)
 
 	log.Printf("[ALERT] n8n triggered → status=%d machine=%s severity=%s",
 		resp.StatusCode,

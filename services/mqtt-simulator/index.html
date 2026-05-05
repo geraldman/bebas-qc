@@ -254,13 +254,13 @@ const BROKER_WS = "ws://localhost:8000/mqtt";
 
 const MACHINES = [
   { id: "LINE1_STN1", label: "Line 1 — Conveyor",  topic: "bebasqc/line1/station1/sensors",
-    defaults: { temperature: 68, humidity: 60, vibration: 0.6, belt_speed: 120 } },
+    defaults: { temperature: 49.5, humidity: 60, vibration: 2.35, belt_speed: 110 } },
   { id: "LINE1_STN2", label: "Line 1 — Labeler",   topic: "bebasqc/line1/station2/sensors",
-    defaults: { temperature: 55, humidity: 58, vibration: 0.4, belt_speed: 115 } },
+    defaults: { temperature: 49.5, humidity: 60, vibration: 2.35, belt_speed: 110 } },
   { id: "LINE2_STN1", label: "Line 2 — Filler",    topic: "bebasqc/line2/station1/sensors",
-    defaults: { temperature: 72, humidity: 62, vibration: 0.7, belt_speed: 110 } },
+    defaults: { temperature: 49.5, humidity: 60, vibration: 2.35, belt_speed: 110 } },
   { id: "LINE2_STN2", label: "Line 2 — Sealer",    topic: "bebasqc/line2/station2/sensors",
-    defaults: { temperature: 85, humidity: 55, vibration: 0.5, belt_speed: 118 } },
+    defaults: { temperature: 49.5, humidity: 60, vibration: 2.35, belt_speed: 110 } },
 ];
 
 const FAULTS = ["high_vibration", "overheating", "speed_drop", "label_misalign"];
@@ -273,17 +273,18 @@ const DRIFT_RANGE = {
   belt_speed: 2,
 };
 
-const RCA_LIMITS = {
-  temperature: 90,
-  vibration: 1.5,
-  belt_speed: 70,
+const THRESHOLDS = {
+  machine_temp: { warn: 55, critical: 70 },
+  vibration: { warn: 5, critical: 8 },
+  humidity: { warn: 80 },
+  belt_speed: { min: 70 },
 };
 
 const NORMAL_BOUNDS = {
-  temperature: [55, 85],
-  humidity: [45, 75],
-  vibration: [0.2, 1.2],
-  belt_speed: [90, 140],
+  temperature: [45, THRESHOLDS.machine_temp.warn - 1],
+  humidity: [45, THRESHOLDS.humidity.warn - 5],
+  vibration: [0.2, THRESHOLDS.vibration.warn - 0.5],
+  belt_speed: [THRESHOLDS.belt_speed.min + 10, 140],
 };
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
@@ -397,13 +398,13 @@ function getSensorBounds(machineId, sensor, input) {
   const fault = activeFaults[machineId];
 
   if (fault === "overheating" && sensor === "temperature") {
-    return [Math.max(RCA_LIMITS.temperature + 5, min), max];
+    return [Math.max(THRESHOLDS.machine_temp.critical + 5, min), max];
   }
   if (fault === "high_vibration" && sensor === "vibration") {
-    return [Math.max(RCA_LIMITS.vibration + 0.3, min), max];
+    return [Math.max(THRESHOLDS.vibration.critical + 0.3, min), max];
   }
   if (fault === "speed_drop" && sensor === "belt_speed") {
-    return [min, Math.min(RCA_LIMITS.belt_speed - 5, max)];
+    return [min, Math.min(THRESHOLDS.belt_speed.min - 5, max)];
   }
 
   const normal = NORMAL_BOUNDS[sensor];
@@ -535,9 +536,18 @@ function buildPayload(machine) {
   let defects     = 0;
 
   // Apply fault overrides
-  if (fault === "high_vibration") { vibration  = 2.0 + Math.random() * 0.5; defects = Math.ceil(Math.random() * 3); }
-  if (fault === "overheating")    { temperature = temperature + 25 + Math.random() * 10; defects = Math.ceil(Math.random() * 2); }
-  if (fault === "speed_drop")     { belt_speed  = belt_speed * 0.55; defects = Math.ceil(Math.random() * 4); }
+  if (fault === "high_vibration") {
+    vibration  = THRESHOLDS.vibration.critical + 0.5 + Math.random();
+    defects = Math.ceil(Math.random() * 3);
+  }
+  if (fault === "overheating") {
+    temperature = THRESHOLDS.machine_temp.critical + 5 + Math.random() * 10;
+    defects = Math.ceil(Math.random() * 2);
+  }
+  if (fault === "speed_drop") {
+    belt_speed  = Math.max(20, THRESHOLDS.belt_speed.min - 10 - Math.random() * 10);
+    defects = Math.ceil(Math.random() * 4);
+  }
   if (fault === "label_misalign") { defects = Math.ceil(Math.random() * 3); }
 
   return {

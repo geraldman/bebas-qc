@@ -44,15 +44,15 @@ var rules = map[string]Rule{
 
 // Threshold-based fault detection (when fault field is nil but values are abnormal)
 func detectFromThresholds(p models.SensorPayload) *string {
-	if p.Vibration > 1.5 {
+	if p.Vibration > VibrationWarn {
 		s := "high_vibration"
 		return &s
 	}
-	if p.Temperature > 90 {
+	if p.Temperature > MachineTempWarn {
 		s := "overheating"
 		return &s
 	}
-	if p.BeltSpeed < 70 {
+	if p.BeltSpeed < BeltSpeedMin {
 		s := "speed_drop"
 		return &s
 	}

@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "mqtt": "^5.10.4",
+    "recharts": "^2.13.2",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },
