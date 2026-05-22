@@ -1,653 +1,201 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import mqtt, { type MqttClient } from "mqtt";
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { useEffect, useState } from "react";
 import "./App.css";
-import {
-  detectAnomalies,
-  isBeltSpeedAlert,
-  isMachineTempAlert,
-  isVibrationAlert,
-  type SensorReading,
-} from "./lib/thresholds";
-
-const MQTT_URL = import.meta.env.VITE_MQTT_URL || `ws://${window.location.hostname}:8000/mqtt`;
-const MQTT_TOPIC = import.meta.env.VITE_MQTT_TOPIC || "bebasqc/#";
-const API_BASE = import.meta.env.VITE_API_BASE || "";
-
-const withApiBase = (path: string) => {
-  if (!path) return "";
-  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:")) {
-    return path;
-  }
-  if (!API_BASE) return path;
-  const base = API_BASE.endsWith("/") ? API_BASE.slice(0, -1) : API_BASE;
-  const suffix = path.startsWith("/") ? path : `/${path}`;
-  return `${base}${suffix}`;
-};
-
-const NORMAL_BOUNDS = {
-  temp_ds: [45, 54],
-  humidity: [45, 75],
-  vibration: [0.2, 4.5],
-  belt_speed: [80, 140],
-} as const;
-
-const midpoint = (min: number, max: number) => (min + max) / 2;
-const randBetween = (min: number, max: number) => min + Math.random() * (max - min);
-
-const MACHINES = [
-  {
-    id: "LINE1_STN1",
-    label: "Line 1 — Conveyor",
-    defaults: {
-      temp: midpoint(...NORMAL_BOUNDS.temp_ds),
-      humidity: midpoint(...NORMAL_BOUNDS.humidity),
-      vibration: midpoint(...NORMAL_BOUNDS.vibration),
-      belt_speed: midpoint(...NORMAL_BOUNDS.belt_speed),
-    },
-  },
-  {
-    id: "LINE1_STN2",
-    label: "Line 1 — Labeler",
-    defaults: {
-      temp: midpoint(...NORMAL_BOUNDS.temp_ds),
-      humidity: midpoint(...NORMAL_BOUNDS.humidity),
-      vibration: midpoint(...NORMAL_BOUNDS.vibration),
-      belt_speed: midpoint(...NORMAL_BOUNDS.belt_speed),
-    },
-  },
-  {
-    id: "LINE2_STN1",
-    label: "Line 2 — Filler",
-    defaults: {
-      temp: midpoint(...NORMAL_BOUNDS.temp_ds),
-      humidity: midpoint(...NORMAL_BOUNDS.humidity),
-      vibration: midpoint(...NORMAL_BOUNDS.vibration),
-      belt_speed: midpoint(...NORMAL_BOUNDS.belt_speed),
-    },
-  },
-  {
-    id: "LINE2_STN2",
-    label: "Line 2 — Sealer",
-    defaults: {
-      temp: midpoint(...NORMAL_BOUNDS.temp_ds),
-      humidity: midpoint(...NORMAL_BOUNDS.humidity),
-      vibration: midpoint(...NORMAL_BOUNDS.vibration),
-      belt_speed: midpoint(...NORMAL_BOUNDS.belt_speed),
-    },
-  },
-];
-
-const machineLabel = (id: string) => MACHINES.find((m) => m.id === id)?.label || id;
-
-type RoboflowPrediction = {
-  class?: string;
-  confidence?: number;
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-};
-
-type RoboflowResult = {
-  predictions?: RoboflowPrediction[];
-  outputs?: Array<{ predictions?: RoboflowPrediction[] }>;
-};
+import ControlHub from "./pages/ControlHub";
+import Dashboard from "./pages/Dashboard";
+import Simulator from "./pages/Simulator";
 
 function App() {
-  const [view, setView] = useState<"landing" | "dashboard">("landing");
-  const [source, setSource] = useState<"mock" | "mqtt">("mock");
-  const [connected, setConnected] = useState(false);
-  const [readingsByMachine, setReadingsByMachine] = useState<Record<string, SensorReading[]>>({});
-  const [latestByMachine, setLatestByMachine] = useState<Record<string, SensorReading>>({});
-  const [muted, setMuted] = useState(false);
-  const [activeMachineId, setActiveMachineId] = useState(MACHINES[0].id);
-  const [cvResult, setCvResult] = useState<RoboflowResult | null>(null);
-  const [cvLoading, setCvLoading] = useState(false);
-  const [cvError, setCvError] = useState<string | null>(null);
-  const [monitorImage, setMonitorImage] = useState<string>("");
-  const intervalRef = useRef<number | null>(null);
-  const clientRef = useRef<MqttClient | null>(null);
-  const lastInferenceRef = useRef<string>("");
+  const [path, setPath] = useState(window.location.pathname);
+  const [sessionStart, setSessionStart] = useState<number | null>(null);
+  const [timeLeft, setTimeLeft] = useState<number>(15 * 60);
+  const [containerId, setContainerId] = useState<string>("");
+  const [provisioning, setProvisioning] = useState<boolean>(false);
+  const [provStep, setProvStep] = useState<number>(0);
 
-  const recordReading = (reading: SensorReading) => {
-    const id = reading.machine_id || "UNKNOWN";
-    setReadingsByMachine((prev) => {
-      const next = [...(prev[id] || []), reading].slice(-30);
-      return { ...prev, [id]: next };
-    });
-    setLatestByMachine((prev) => ({ ...prev, [id]: reading }));
+  // Initialize session from localStorage or show provisioning screen
+  useEffect(() => {
+    const storedStart = localStorage.getItem("bebasqc_container_start");
+    const storedId = localStorage.getItem("bebasqc_container_id");
+
+    if (storedStart && storedId) {
+      setSessionStart(Number(storedStart));
+      setContainerId(storedId);
+    } else {
+      setProvisioning(true);
+    }
+  }, []);
+
+  // Provisioning steps simulation (visual prototype details)
+  useEffect(() => {
+    if (!provisioning) return;
+
+    const steps = [
+      "Requesting new sandbox environment...",
+      "Allocating docker resources...",
+      "Initializing PostgreSQL schema & seeding data...",
+      "Setting up HiveMQ MQTT broker proxy...",
+      "Connecting Edge SmartVision model...",
+      "Container ready! Launching Control Hub..."
+    ];
+
+    const timer = setInterval(() => {
+      setProvStep((prev) => {
+        if (prev >= steps.length - 1) {
+          clearInterval(timer);
+          const newStart = Date.now();
+          const newId = "bebasqc-sandbox-" + Math.random().toString(36).substring(2, 6).toUpperCase();
+          localStorage.setItem("bebasqc_container_start", String(newStart));
+          localStorage.setItem("bebasqc_container_id", newId);
+          setSessionStart(newStart);
+          setContainerId(newId);
+          setProvisioning(false);
+          return prev;
+        }
+        return prev + 1;
+      });
+    }, 850);
+
+    return () => clearInterval(timer);
+  }, [provisioning]);
+
+  // Countdown timer logic
+  useEffect(() => {
+    if (!sessionStart) return;
+
+    const interval = setInterval(() => {
+      const elapsedSeconds = Math.floor((Date.now() - sessionStart) / 1000);
+      const remaining = 15 * 60 - elapsedSeconds;
+      if (remaining <= 0) {
+        setTimeLeft(0);
+        clearInterval(interval);
+      } else {
+        setTimeLeft(remaining);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [sessionStart]);
+
+  // Routing popstate listener
+  useEffect(() => {
+    const handlePopState = () => {
+      setPath(window.location.pathname);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const navigate = (newPath: string) => {
+    window.history.pushState({}, "", newPath);
+    setPath(newPath);
   };
 
-  useEffect(() => {
-    if (intervalRef.current) {
-      window.clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    if (clientRef.current) {
-      clientRef.current.end(true);
-      clientRef.current = null;
-    }
+  const handleLaunchNew = () => {
+    localStorage.removeItem("bebasqc_container_start");
+    localStorage.removeItem("bebasqc_container_id");
+    setSessionStart(null);
+    setTimeLeft(15 * 60);
+    setProvStep(0);
+    setProvisioning(true);
+    navigate("/");
+  };
 
-    setConnected(false);
-
-    if (source === "mock") {
-      setConnected(true);
-      let tick = 0;
-      const gen = () => {
-        tick += 1;
-        const anomaly = tick % 15 === 0;
-        const anomalyTarget = anomaly
-          ? MACHINES[Math.floor(Math.random() * MACHINES.length)].id
-          : null;
-
-        MACHINES.forEach((machine) => {
-          const isAnomaly = anomalyTarget === machine.id;
-          const temp_ds = randBetween(...NORMAL_BOUNDS.temp_ds) + (isAnomaly ? 30 : 0);
-          const belt_speed = randBetween(...NORMAL_BOUNDS.belt_speed) + (isAnomaly ? -40 : 0);
-          const next: SensorReading = {
-            machine_id: machine.id,
-            temp_dht: temp_ds - 12 + Math.random() * 4,
-            humidity: randBetween(...NORMAL_BOUNDS.humidity) + (isAnomaly ? 20 : 0),
-            temp_ds,
-            belt_speed,
-            vibration: randBetween(...NORMAL_BOUNDS.vibration) + (isAnomaly ? 7 : 0),
-            timestamp: Date.now(),
-          };
-          recordReading(next);
-        });
-      };
-      gen();
-      intervalRef.current = window.setInterval(gen, 1500);
-    } else {
-      const client = mqtt.connect(MQTT_URL, {
-        clientId: `bebasqc_web_${Math.random().toString(16).slice(2, 8)}`,
-        reconnectPeriod: 3000,
-        connectTimeout: 8000,
-      });
-      clientRef.current = client;
-
-      client.on("connect", () => {
-        setConnected(true);
-        client.subscribe(MQTT_TOPIC);
-      });
-      client.on("close", () => setConnected(false));
-      client.on("error", () => setConnected(false));
-      client.on("message", (_topic, payload) => {
-        try {
-          const data = JSON.parse(payload.toString());
-          const machineId = String(data.machine_id ?? data.machineId ?? "UNKNOWN");
-          const tempValue = Number(data.temp_ds ?? data.temp_dht ?? data.temperature ?? 0);
-          const next: SensorReading = {
-            machine_id: machineId,
-            temp_dht: Number(data.temp_dht ?? data.temperature ?? 0),
-            humidity: Number(data.humidity ?? 0),
-            temp_ds: tempValue,
-            belt_speed: Number(data.belt_speed ?? data.beltSpeed ?? data.speed ?? 0),
-            vibration: Number(data.vibration ?? 0),
-            timestamp: Date.now(),
-          };
-          recordReading(next);
-        } catch (e) {
-          console.warn("Bad MQTT payload", e);
-        }
-      });
-    }
-
-    return () => {
-      if (intervalRef.current) {
-        window.clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      if (clientRef.current) {
-        clientRef.current.end(true);
-        clientRef.current = null;
-      }
-    };
-  }, [source]);
-
-  const machineIds = useMemo(() => {
-    const known = MACHINES.map((m) => m.id);
-    const extras = Object.keys(latestByMachine).filter((id) => !known.includes(id));
-    return [...known, ...extras];
-  }, [latestByMachine]);
-
-  useEffect(() => {
-    if (!latestByMachine[activeMachineId]) {
-      const first = machineIds.find((id) => latestByMachine[id]);
-      if (first && first !== activeMachineId) {
-        setActiveMachineId(first);
-      }
-    }
-  }, [latestByMachine, machineIds, activeMachineId]);
-
-  const activeLatest = latestByMachine[activeMachineId] || null;
-  const activeReadings = readingsByMachine[activeMachineId] || [];
-
-  const anomaliesByMachine = useMemo(() => {
-    const entries = Object.entries(latestByMachine).map(([id, reading]) => [id, detectAnomalies(reading)] as const);
-    return Object.fromEntries(entries);
-  }, [latestByMachine]);
-
-  const allAnomalies = useMemo(
-    () =>
-      Object.entries(anomaliesByMachine).flatMap(([id, list]) =>
-        list.map((a) => ({ ...a, machine: id }))
-      ),
-    [anomaliesByMachine]
-  );
-
-  const anomalies = useMemo(() => detectAnomalies(activeLatest), [activeLatest]);
-  const activeLevel = useMemo(() => {
-    if (anomalies.some((a) => a.severity === "critical")) return "critical";
-    if (anomalies.length > 0) return "warning";
-    return "ok";
-  }, [anomalies]);
-  const status = anomalies.some((a) => a.severity === "critical")
-    ? "critical"
-    : allAnomalies.length > 0
-      ? "warning"
-      : "ok";
-
-  useEffect(() => {
-    const status = activeLevel === "ok" ? "ok" : "defect";
-    const controller = new AbortController();
-
-    fetch(`${API_BASE}/api/vision/frame?status=${status}`, { signal: controller.signal })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("frame fetch failed"))))
-      .then((data: { image_url?: string }) => {
-        setMonitorImage(withApiBase(data.image_url || ""));
-      })
-      .catch(() => {
-        setMonitorImage("");
-      });
-
-    return () => controller.abort();
-  }, [activeLevel, activeMachineId]);
-
-  useEffect(() => {
-    if (!monitorImage) {
-      setCvResult(null);
-      return;
-    }
-
-    const key = `${activeMachineId}:${activeLevel}:${monitorImage}`;
-    if (lastInferenceRef.current === key) return;
-    lastInferenceRef.current = key;
-
-    const controller = new AbortController();
-    setCvLoading(true);
-    setCvError(null);
-
-    fetch(`${API_BASE}/api/vision/roboflow`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        image_url: monitorImage,
-      }),
-      signal: controller.signal,
-    })
-      .then((res) => res.json())
-      .then((data: RoboflowResult) => {
-        setCvResult(data);
-      })
-      .catch((err) => {
-        if (err?.name !== "AbortError") {
-          setCvError("Roboflow inference failed");
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setCvLoading(false);
-        }
-      });
-
-    return () => controller.abort();
-  }, [activeMachineId, activeLevel, monitorImage]);
-
-  const chartData = activeReadings.map((r) => ({
-    t: new Date(r.timestamp).toLocaleTimeString("en-US", { minute: "2-digit", second: "2-digit" }),
-    temp_ds: Number(r.temp_ds.toFixed(1)),
-    vibration: Number(r.vibration.toFixed(2)),
-    humidity: Number(r.humidity.toFixed(1)),
-    belt_speed: Number(r.belt_speed.toFixed(1)),
-  }));
-
-  if (view === "landing") {
-    const simulatorUrl = `http://${window.location.hostname}:4000`;
+  // 1. Provisioning screen loading layout
+  if (provisioning) {
+    const steps = [
+      "Requesting new sandbox environment...",
+      "Allocating docker resources...",
+      "Initializing PostgreSQL schema & seeding data...",
+      "Setting up HiveMQ MQTT broker proxy...",
+      "Connecting Edge SmartVision model...",
+      "Container ready! Launching Control Hub..."
+    ];
     return (
-      <div className="hub-container">
-        <div className="glow-circle glow-circle-1" />
-        <div className="glow-circle glow-circle-2" />
-        
-        <header className="hub-header">
-          <div className="hub-badge">PROTOTYPE HUB</div>
-          <h1 className="hub-title">
-            BEBAS QC <span className="title-gradient">Control Hub</span>
-          </h1>
-          <p className="hub-subtitle">
-            An automated, industrial-grade quality control suite. Access real-time line telemetry, machine learning visual defect inspection, or publish simulated hardware sensor feeds.
-          </p>
-        </header>
-
-        <main className="hub-grid">
-          <button 
-            type="button" 
-            className="hub-card" 
-            onClick={() => setView("dashboard")}
-          >
-            <div className="hub-card-icon-wrap bg-blue-grad">
-              <svg className="hub-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="3" width="20" height="14" rx="2" />
-                <path d="M8 21h8M12 17v4" />
-                <path d="M6 10l3-3 4 4 5-5" />
-              </svg>
-            </div>
-            <h2 className="hub-card-title">QC Monitor Dashboard</h2>
-            <p className="hub-card-desc">
-              View live telemetry streams (Temperature, Humidity, Vibration, Belt Speed) for lines and station nodes. Real-time edge camera integration with automated ML-driven product defect prediction.
-            </p>
-            <span className="hub-card-btn font-semibold">Open Dashboard →</span>
-          </button>
-
-          <a 
-            href={simulatorUrl} 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            className="hub-card"
-          >
-            <div className="hub-card-icon-wrap bg-orange-grad">
-              <svg className="hub-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-                <circle cx="12" cy="12" r="4" />
-              </svg>
-            </div>
-            <h2 className="hub-card-title">MQTT IoT Simulator</h2>
-            <p className="hub-card-desc">
-              Emulate edge devices on production lines. Set parameters, configure vibration spikes or heat surges, and test how the backend broker routes alerts and vision signals dynamically.
-            </p>
-            <span className="hub-card-btn font-semibold">Launch Simulator ↗</span>
-          </a>
-        </main>
-
-        <footer className="hub-footer">
-          <p>Bebas QC Systems &copy; {new Date().getFullYear()} &bull; Industrial Edge Intelligence</p>
-        </footer>
+      <div className="prov-container">
+        <div className="prov-card">
+          <div className="prov-spinner-wrap">
+            <div className="prov-spinner"></div>
+            <div className="prov-spinner-inner"></div>
+          </div>
+          <h2 className="prov-title">Provisioning Container</h2>
+          <p className="prov-subtitle">Spinning up your dedicated prototype environment...</p>
+          <div className="prov-steps">
+            {steps.map((step, idx) => {
+              let statusClass = "step-pending";
+              if (idx < provStep) statusClass = "step-done";
+              else if (idx === provStep) statusClass = "step-active";
+              return (
+                <div key={idx} className={`prov-step ${statusClass}`}>
+                  <span className="step-icon">
+                    {idx < provStep ? "✓" : idx === provStep ? "●" : "○"}
+                  </span>
+                  <span className="step-text">{step}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     );
   }
 
+  // Format time remaining MM:SS
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const isExpired = timeLeft <= 0;
+
+  // Banner component
+  const sessionBanner = (
+    <div className={`session-banner ${timeLeft < 60 ? "session-warning" : ""}`}>
+      <div className="session-info">
+        <span className="session-pulse"></span>
+        <span className="session-text">
+          Container Active: <code>{containerId}</code>
+        </span>
+      </div>
+      <div className="session-timer">
+        Time remaining: <strong>{formatTime(timeLeft)}</strong>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="dashboard">
-      <div className="header-row">
-        <div>
-          <h2 className="title">Production Line Monitor</h2>
-          <p className="subtitle">Real-time IoT + AI defect intelligence</p>
-        </div>
-        <div className="header-actions">
-          <button
-            type="button"
-            className="btn btn-outline"
-            onClick={() => setView("landing")}
-            style={{ marginRight: "4px" }}
-          >
-            ← Control Hub
-          </button>
-          <button
-            type="button"
-            className="btn btn-outline btn-icon"
-            onClick={() => setMuted((m) => !m)}
-            title={muted ? "Unmute alerts" : "Mute alerts"}
-          >
-            {muted ? "Mute" : "Sound"}
-          </button>
-          <div className="source-toggle">
-            <label htmlFor="source" className="label">
-              {source === "mock" ? "Mock Data" : "Live MQTT"}
-            </label>
-            <input
-              id="source"
-              type="checkbox"
-              checked={source === "mqtt"}
-              onChange={(e) => setSource(e.target.checked ? "mqtt" : "mock")}
-            />
-            <span className={connected ? "status-dot ok" : "status-dot"} />
-          </div>
-          <a className="btn" href="/detect">
-            Inspect Product
-          </a>
-        </div>
-      </div>
-
-      <div className={`status-banner ${status}`}>
-        <div className="status-icon">{status === "ok" ? "OK" : "!"}</div>
-        <div className="status-text">
-          <div className="status-title">
-            Machine Status: {status === "ok" ? "All Normal" : status === "warning" ? "Warning" : "Critical Anomaly"}
-          </div>
-          {allAnomalies.length > 0 && (
-            <div className="status-sub">
-              {allAnomalies
-                .map((a) => `${machineLabel(a.machine)} ${a.sensor} ${a.threshold}`)
-                .join(" | ")}
+    <>
+      {!isExpired && sessionBanner}
+      {isExpired && (
+        <div className="expire-overlay">
+          <div className="expire-card">
+            <div className="expire-icon-wrap">
+              <svg className="expire-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
             </div>
-          )}
-        </div>
-        {allAnomalies.length > 0 && (
-          <a className="btn btn-outline" href="/rca">
-            Run RCA
-          </a>
-        )}
-      </div>
-
-      <div className="machine-grid">
-        {machineIds.map((id) => {
-          const reading = latestByMachine[id] || null;
-          const machineAnoms = anomaliesByMachine[id] || [];
-          const level = machineAnoms.some((a) => a.severity === "critical")
-            ? "critical"
-            : machineAnoms.length > 0
-              ? "warning"
-              : "ok";
-          return (
-            <button
-              key={id}
-              type="button"
-              className={`machine-card ${activeMachineId === id ? "active" : ""}`}
-              onClick={() => setActiveMachineId(id)}
-            >
-              <div className="machine-header">
-                <div>
-                  <div className="machine-label">{machineLabel(id)}</div>
-                  <div className="machine-id">{id}</div>
-                </div>
-                <span className={`status-pill ${level}`}>{level.toUpperCase()}</span>
-              </div>
-              <div className="machine-metrics">
-                <div className="metric">
-                  <span className="metric-label">Temp</span>
-                  <span className="metric-value">{reading ? reading.temp_ds.toFixed(1) : "-"} deg C</span>
-                </div>
-                <div className="metric">
-                  <span className="metric-label">Humidity</span>
-                  <span className="metric-value">{reading ? reading.humidity.toFixed(1) : "-"}%</span>
-                </div>
-                <div className="metric">
-                  <span className="metric-label">Vibration</span>
-                  <span className="metric-value">{reading ? reading.vibration.toFixed(2) : "-"} m/s^2</span>
-                </div>
-                <div className="metric">
-                  <span className="metric-label">Belt Speed</span>
-                  <span className="metric-value">{reading ? reading.belt_speed.toFixed(0) : "-"} items/min</span>
-                </div>
-              </div>
+            <h2 className="expire-title">Session Expired</h2>
+            <p className="expire-desc">
+              Your 15-minute personalized container sandbox has reached its limit and has been destroyed to save prototype resources.
+            </p>
+            <button className="btn" style={{ background: "#ef4444", borderColor: "#ef4444", color: "#fff", width: "100%" }} onClick={handleLaunchNew}>
+              Launch New Container
             </button>
-          );
-        })}
-      </div>
-
-      <section className="monitor-panel">
-        <div className="monitor-header">
-          <div>
-            <h3>{machineLabel(activeMachineId)} Monitor</h3>
-            <p>Vision simulation + line telemetry</p>
-          </div>
-          <span className={`status-pill ${activeLevel}`}>{activeLevel.toUpperCase()}</span>
-        </div>
-        <div className="monitor-body">
-          <div className="monitor-frame">
-            {monitorImage ? (
-              <img src={monitorImage} alt={`${machineLabel(activeMachineId)} frame`} />
-            ) : (
-              <div className="monitor-empty">
-                Waiting for backend frame. Add images to assets/roboflow/ok and assets/roboflow/defect.
-              </div>
-            )}
-            {cvLoading && <div className="monitor-overlay">Running inference...</div>}
-          </div>
-          <div className="monitor-details">
-            <div className="monitor-meta">
-              <div className="meta-row">
-                <span className="meta-label">Machine</span>
-                <span className="meta-value">{activeMachineId}</span>
-              </div>
-              <div className="meta-row">
-                <span className="meta-label">Temp</span>
-                <span className="meta-value">{activeLatest ? activeLatest.temp_ds.toFixed(1) : "-"} deg C</span>
-              </div>
-              <div className="meta-row">
-                <span className="meta-label">Humidity</span>
-                <span className="meta-value">{activeLatest ? activeLatest.humidity.toFixed(1) : "-"}%</span>
-              </div>
-              <div className="meta-row">
-                <span className="meta-label">Belt Speed</span>
-                <span className="meta-value">{activeLatest ? activeLatest.belt_speed.toFixed(0) : "-"} items/min</span>
-              </div>
-              <div className="meta-row">
-                <span className="meta-label">Vibration</span>
-                <span className="meta-value">{activeLatest ? activeLatest.vibration.toFixed(2) : "-"} m/s^2</span>
-              </div>
-            </div>
-
-            <div className="monitor-results">
-              <h4>Roboflow Results</h4>
-              {cvError && <div className="monitor-error">{cvError}</div>}
-              {!cvError && !cvLoading && (!cvResult || !cvResult.predictions) && (
-                <div className="monitor-empty">No predictions yet</div>
-              )}
-              {(cvResult?.predictions || cvResult?.outputs?.[0]?.predictions) && (
-                <ul>
-                  {(cvResult.predictions || cvResult.outputs?.[0]?.predictions || []).map((p, idx) => (
-                    <li key={`${p.class}-${idx}`}>
-                      <span className="chip">{p.class || "object"}</span>
-                      <span>{p.confidence ? `${(p.confidence * 100).toFixed(0)}%` : "-"}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
           </div>
         </div>
-      </section>
-
-      <div className="sensor-grid">
-        <SensorCard label="Air Temp" value={activeLatest?.temp_dht} unit="deg C" />
-        <SensorCard label="Humidity" value={activeLatest?.humidity} unit="%" />
-        <SensorCard
-          label="Machine Temp"
-          value={activeLatest?.temp_ds}
-          unit="deg C"
-          alert={isMachineTempAlert(activeLatest)}
-        />
-        <SensorCard
-          label="Belt Speed"
-          value={activeLatest?.belt_speed}
-          unit="items/min"
-          alert={isBeltSpeedAlert(activeLatest)}
-        />
-        <SensorCard
-          label="Vibration"
-          value={activeLatest?.vibration}
-          unit="m/s^2"
-          alert={isVibrationAlert(activeLatest)}
-        />
-      </div>
-
-      <div className="chart-grid">
-        <ChartCard title="Machine Temperature" dataKey="temp_ds" color="#ef4444" unit="deg C" data={chartData} />
-        <ChartCard title="Belt Speed" dataKey="belt_speed" color="#0ea5e9" unit="items/min" data={chartData} />
-        <ChartCard title="Vibration" dataKey="vibration" color="#f59e0b" unit="m/s^2" data={chartData} />
-      </div>
-
-      <div className="config-card">
-        <h3>MQTT Configuration</h3>
-        <div>Broker: <code>{MQTT_URL}</code></div>
-        <div>Topic: <code>{MQTT_TOPIC}</code></div>
-        <div>ESP32 publishes: temp_dht, humidity, temp_ds, belt_speed, vibration</div>
-      </div>
-    </div>
-  );
-}
-
-function SensorCard({
-  label,
-  value,
-  unit,
-  alert,
-}: {
-  label: string;
-  value?: number;
-  unit: string;
-  alert?: boolean;
-}) {
-  return (
-    <div className={`card ${alert ? "card-alert" : ""}`}>
-      <div className="card-label">{label}</div>
-      <div className="card-value">
-        {value !== undefined && value !== null ? value.toFixed(1) : "-"}
-        <span className="card-unit">{unit}</span>
-      </div>
-      {alert && <span className="badge badge-alert">High</span>}
-    </div>
-  );
-}
-
-function ChartCard({
-  title,
-  dataKey,
-  color,
-  unit,
-  data,
-}: {
-  title: string;
-  dataKey: "temp_ds" | "vibration" | "humidity" | "belt_speed";
-  color: string;
-  unit: string;
-  data: Array<Record<string, string | number>>;
-}) {
-  return (
-    <div className="card chart-card">
-      <div className="card-label">{title}</div>
-      <div className="chart-wrap">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 10, right: 16, left: -8, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis dataKey="t" tick={{ fontSize: 10 }} minTickGap={20} />
-            <YAxis tick={{ fontSize: 10 }} width={42} />
-            <Tooltip formatter={(value) => [`${value} ${unit}`, title]} />
-            <Line type="monotone" dataKey={dataKey} stroke={color} strokeWidth={2} dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
+      )}
+      {!isExpired && (
+        path === "/dashboard" ? (
+          <Dashboard navigate={navigate} containerId={containerId} />
+        ) : path === "/simulator" ? (
+          <Simulator navigate={navigate} containerId={containerId} />
+        ) : (
+          <ControlHub navigate={navigate} />
+        )
+      )}
+    </>
   );
 }
 

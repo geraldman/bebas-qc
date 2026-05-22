@@ -127,18 +127,6 @@ services:
       - bebasqc_network
     restart: unless-stopped
 
-  mqtt-simulator: # this is used to simulate the inputs for the model
-    build:
-      context: ./services/mqtt-simulator
-      dockerfile: Dockerfile
-    container_name: bebasqc_mqtt_simulator
-    ports:
-      - "4000:80"
-    depends_on:
-      - hivemq
-    networks:
-      - bebasqc_network
-
 volumes:
   postgres_data:
   redis_data:
