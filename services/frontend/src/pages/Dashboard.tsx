@@ -350,6 +350,15 @@ export default function Dashboard({ navigate, containerId }: DashboardProps) {
           >
             🔌 Run IoT Simulator
           </a>
+          <a
+            href={`https://t.me/BebasQcBot?start=${containerId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-outline"
+            style={{ marginRight: "4px", backgroundColor: "#0088cc", color: "#ffffff", borderColor: "#0088cc" }}
+          >
+            📲 Link Telegram
+          </a>
           <button
             type="button"
             className="btn btn-outline"

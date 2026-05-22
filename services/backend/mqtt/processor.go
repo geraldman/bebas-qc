@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	pahomqtt "github.com/eclipse/paho.mqtt.golang"
@@ -70,6 +71,13 @@ func (p *Processor) subscribe(c pahomqtt.Client) {
 func (p *Processor) handleMessage(_ pahomqtt.Client, msg pahomqtt.Message) {
 	log.Printf("[MQTT] Message on topic: %s", msg.Topic())
 
+	// Parse container_id from topic (e.g. bebasqc/bebasqc-sandbox-XXXX/line1/station1/sensors)
+	topicParts := strings.Split(msg.Topic(), "/")
+	var containerID string
+	if len(topicParts) > 1 && topicParts[0] == "bebasqc" {
+		containerID = topicParts[1]
+	}
+
 	// 1. Parse JSON payload
 	var payload models.SensorPayload
 	if err := json.Unmarshal(msg.Payload(), &payload); err != nil {
@@ -114,6 +122,6 @@ func (p *Processor) handleMessage(_ pahomqtt.Client, msg pahomqtt.Message) {
 
 	// 5. Trigger n8n alert for medium and high severity
 	if result.Severity == "high" || result.Severity == "medium" {
-		go triggerAlert(payload, *result, rcaID)
+		go triggerAlert(containerID, payload, *result, rcaID)
 	}
 }

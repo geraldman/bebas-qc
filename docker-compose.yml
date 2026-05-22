@@ -25,6 +25,7 @@ services:
     build:
       context: ./services/backend
       dockerfile: Dockerfile
+    image: ghcr.io/geraldman/bebas-qc/backend:latest
     container_name: bebasqc_backend
     env_file: .env
     environment:
@@ -51,6 +52,7 @@ services:
     build:
       context: ./services/frontend
       dockerfile: Dockerfile
+    image: ghcr.io/geraldman/bebas-qc/frontend:latest
     container_name: bebasqc_frontend
     ports:
       - "3000:80"
@@ -119,6 +121,8 @@ services:
       - N8N_BASIC_AUTH_ACTIVE=true
       - N8N_BASIC_AUTH_USER=admin
       - N8N_BASIC_AUTH_PASSWORD=bebasqc123
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - CREDENTIALS_OVERWRITE_DATA={"postgres":{"host":"postgres","port":5432,"database":"${POSTGRES_DB}","user":"${POSTGRES_USER}","password":"${POSTGRES_PASSWORD}"},"telegramApi":{"accessToken":"${TELEGRAM_BOT_TOKEN}"}}
     volumes:
       - n8n_data:/home/node/.n8n
     depends_on:

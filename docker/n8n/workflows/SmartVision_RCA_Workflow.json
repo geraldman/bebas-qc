@@ -17,34 +17,47 @@
     },
     {
       "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT telegram_chat_id FROM telegram_subscriptions WHERE container_id = '{{ $json.container_id }}';"
+      },
+      "name": "Query Telegram Subscription",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        480,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "postgresConnection",
+          "name": "Postgres connection"
+        }
+      }
+    },
+    {
+      "parameters": {
         "conditions": {
-          "string": [
-            {
-              "value1": "={{$json.status}}",
-              "value2": "defect"
-            }
-          ],
           "number": [
             {
-              "value1": "={{$json.confidence}}",
+              "value1": "={{ $json.telegram_chat_id }}",
               "operation": "larger",
-              "value2": 0.8
+              "value2": 0
             }
           ]
         }
       },
-      "name": "DECISION FILTER",
+      "name": "Is Subscribed?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
       "position": [
-        480,
+        700,
         300
       ]
     },
     {
       "parameters": {
-        "chatId": "ISI_CHAT_ID_TELEGRAM_KAMU",
-        "text": "=\ud83d\udea8 *SMARTVISION RCA ALERT* \ud83d\udea8\n\nDefect Detected!\n- Type: [{{$json.defect_type}}]\n- Confidence: [{{($json.confidence * 100).toFixed(0)}}]%\n- Product ID: [{{$json.product_id}}]\n\nSegera cek jalur conveyor!",
+        "chatId": "={{ $json.telegram_chat_id }}",
+        "text": "=🚨 *SMARTVISION RCA ALERT* 🚨\n\nAn anomaly has been detected in your active sandbox container!\n\n- *Sandbox ID:* `{{ $node[\"SmartVision RCA INPUT\"].json[\"container_id\"] }}`\n- *Machine:* `{{ $node[\"SmartVision RCA INPUT\"].json[\"machine_id\"] }}`\n- *Severity:* `{{ $node[\"SmartVision RCA INPUT\"].json[\"severity\"].toUpperCase() }}`\n- *Problem:* {{ $node[\"SmartVision RCA INPUT\"].json[\"problem\"] }}\n- *Cause:* {{ $node[\"SmartVision RCA INPUT\"].json[\"cause\"] }}\n- *Recommended Action:* {{ $node[\"SmartVision RCA INPUT\"].json[\"action\"] }}\n\n_Please check your QC Monitor Dashboard and IoT Simulator._",
         "additionalFields": {
           "parse_mode": "Markdown"
         }
@@ -53,9 +66,15 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1,
       "position": [
-        720,
+        920,
         180
-      ]
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegramConnection",
+          "name": "Telegram Bot API"
+        }
+      }
     },
     {
       "parameters": {
@@ -63,14 +82,14 @@
         "url": "https://api.whatsapp-gateway.com/send",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"to\": \"NOMOR_HP_OPERATOR\",\n  \"message\": \"\u26a0\ufe0f *SMARTVISION RCA ALERT* \u26a0\ufe0f\\n\\nDefect: {{$json.defect_type}}\\nConfidence: {{($json.confidence * 100).toFixed(0)}}%\"\n}",
+        "jsonBody": "={\n  \"to\": \"NOMOR_HP_OPERATOR\",\n  \"message\": \"\u26a0\ufe0f *SMARTVISION RCA ALERT* \u26a0\ufe0f\\n\\nDefect: {{$node[\\\"SmartVision RCA INPUT\\\"].json.problem}}\\nSeverity: {{$node[\\\"SmartVision RCA INPUT\\\"].json.severity}}\"\n}",
         "options": {}
       },
       "name": "WHATSAPP ALERT",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 2,
       "position": [
-        720,
+        920,
         380
       ]
     },
@@ -80,9 +99,118 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        720,
+        920,
         550
       ]
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        750
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegramConnection",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.message.text }}",
+              "operation": "startsWith",
+              "value2": "/start"
+            }
+          ]
+        }
+      },
+      "name": "Is Start Command?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        480,
+        750
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "container_id",
+              "value": "={{ $node[\"Telegram Trigger\"].json[\"message\"][\"text\"].split(' ')[1] || 'bebasqc-sandbox-' + Math.random().toString(36).substring(2, 6).toUpperCase() }}"
+            }
+          ],
+          "number": [
+            {
+              "name": "chat_id",
+              "value": "={{ $node[\"Telegram Trigger\"].json[\"message\"][\"chat\"][\"id\"] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Extract Params",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        700,
+        730
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO telegram_subscriptions (container_id, telegram_chat_id) VALUES ('{{ $json.container_id }}', {{ $json.chat_id }}) ON CONFLICT (container_id) DO UPDATE SET telegram_chat_id = EXCLUDED.telegram_chat_id, created_at = NOW();"
+      },
+      "name": "Save Subscription",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        900,
+        730
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "postgresConnection",
+          "name": "Postgres connection"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $node[\"Extract Params\"].json[\"chat_id\"] }}",
+        "text": "={{ $node[\"Telegram Trigger\"].json[\"message\"][\"text\"].split(' ')[1] ? '✅ *Link Successful!*\\n\\nYour Telegram account has been linked to BebasQC sandbox container: *' + $json.container_id + '*.\\n\\nYou will now receive real-time production line alerts and anomaly detections for this sandbox session here.' : '✅ *New Sandbox Session Initialized!*\\n\\nA new BebasQC sandbox environment has been provisioned and linked to your Telegram account.\\n\\n*Sandbox ID:* `' + $json.container_id + '`\\n\\n🔗 [Open Dashboard](http://localhost:3000/?containerId=' + $json.container_id + ')' }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "name": "Confirm Link",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        730
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegramConnection",
+          "name": "Telegram Bot API"
+        }
+      }
     }
   ],
   "connections": {
@@ -90,13 +218,23 @@
       "main": [
         [
           {
-            "node": "DECISION FILTER",
+            "node": "Query Telegram Subscription",
             "index": 0
           }
         ]
       ]
     },
-    "DECISION FILTER": {
+    "Query Telegram Subscription": {
+      "main": [
+        [
+          {
+            "node": "Is Subscribed?",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Subscribed?": {
       "main": [
         [
           {
@@ -111,6 +249,46 @@
         [
           {
             "node": "NO ACTION",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Is Start Command?",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Start Command?": {
+      "main": [
+        [
+          {
+            "node": "Extract Params",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Params": {
+      "main": [
+        [
+          {
+            "node": "Save Subscription",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Subscription": {
+      "main": [
+        [
+          {
+            "node": "Confirm Link",
             "index": 0
           }
         ]

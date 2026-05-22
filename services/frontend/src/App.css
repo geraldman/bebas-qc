@@ -11,6 +11,7 @@
   &:hover {
     border-color: var(--accent-border);
   }
+
   &:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
@@ -42,8 +43,7 @@
     z-index: 1;
     top: 34px;
     height: 28px;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
-      scale(1.4);
+    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg) scale(1.4);
   }
 
   .vite {
@@ -51,8 +51,7 @@
     top: 107px;
     height: 26px;
     width: auto;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
-      scale(0.8);
+    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg) scale(0.8);
   }
 }
 
@@ -75,9 +74,10 @@
   border-top: 1px solid var(--border);
   text-align: left;
 
-  & > div {
+  &>div {
     flex: 1 1 0;
     padding: 32px;
+
     @media (max-width: 1024px) {
       padding: 24px 20px;
     }
@@ -130,6 +130,7 @@
     &:hover {
       box-shadow: var(--shadow);
     }
+
     .button-icon {
       height: 18px;
       width: 18px;
@@ -156,6 +157,7 @@
 #spacer {
   height: 88px;
   border-top: 1px solid var(--border);
+
   @media (max-width: 1024px) {
     height: 48px;
   }
@@ -177,6 +179,7 @@
     left: 0;
     border-left-color: var(--border);
   }
+
   &::after {
     right: 0;
     border-right-color: var(--border);
@@ -758,7 +761,7 @@
 .hub-card:hover {
   transform: translateY(-6px);
   border-color: rgba(14, 165, 233, 0.4);
-  box-shadow: 
+  box-shadow:
     0 20px 40px -15px rgba(14, 165, 233, 0.12),
     0 0 0 1px rgba(14, 165, 233, 0.1);
   background: rgba(255, 255, 255, 0.95);
@@ -848,11 +851,13 @@
   .hub-title {
     font-size: 36px;
   }
+
   .hub-grid {
     grid-template-columns: 1fr;
     max-width: 420px;
     gap: 20px;
   }
+
   .hub-container {
     padding: 36px 16px;
   }
@@ -862,6 +867,7 @@
   0% {
     box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.2);
   }
+
   100% {
     box-shadow: 0 0 0 6px rgba(14, 165, 233, 0);
   }
@@ -979,12 +985,19 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes pulse-step {
-  0% { opacity: 0.6; }
-  100% { opacity: 1; }
+  0% {
+    opacity: 0.6;
+  }
+
+  100% {
+    opacity: 1;
+  }
 }
 
 /* Floating Session Banner */
@@ -1050,15 +1063,31 @@
 }
 
 @keyframes pulse-green {
-  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-  70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+
+  70% {
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
 }
 
 @keyframes pulse-white {
-  0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7); }
-  70% { box-shadow: 0 0 0 6px rgba(255, 255, 255, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+  }
+
+  70% {
+    box-shadow: 0 0 0 6px rgba(255, 255, 255, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
 }
 
 /* Expired Session Overlay */
@@ -1118,8 +1147,15 @@
 }
 
 @keyframes slide-up {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 /* MQTT Simulator Page Styles */
@@ -1291,8 +1327,15 @@
 }
 
 @keyframes pulse-border-red {
-  0% { border-color: #fecaca; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.1); }
-  100% { border-color: #fca5a5; box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15); }
+  0% {
+    border-color: #fecaca;
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.1);
+  }
+
+  100% {
+    border-color: #fca5a5;
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15);
+  }
 }
 
 .sim-card-topic {
@@ -1374,6 +1417,7 @@
   flex-direction: column;
   justify-content: space-between;
   cursor: text;
+  text-align: left;
 }
 
 .log-lines-container {
@@ -1388,7 +1432,7 @@
 
 .sim-cli-form {
   display: flex;
-  align-items: center;
+  align-items: start;
   gap: 8px;
   border-top: 1px solid #1e293b;
   padding-top: 10px;
@@ -1409,15 +1453,14 @@
   color: #ffffff;
   font-family: var(--mono);
   font-size: 12px;
+  text-align: left;
 }
 
 .log-empty-msg {
   color: #475569;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   font-style: italic;
+  padding: 4px 0;
+  text-align: left;
 }
 
 .log-line {
@@ -1443,6 +1486,3 @@
 .log-time {
   color: #475569;
 }
-
-
-

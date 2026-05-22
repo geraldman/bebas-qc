@@ -13,13 +13,14 @@ import (
 )
 
 type AlertPayload struct {
-	MachineID string `json:"machine_id"`
-	Problem   string `json:"problem"`
-	Cause     string `json:"cause"`
-	Evidence  string `json:"evidence"`
-	Action    string `json:"action"`
-	Severity  string `json:"severity"`
-	Timestamp string `json:"timestamp"`
+	ContainerID string `json:"container_id"`
+	MachineID   string `json:"machine_id"`
+	Problem     string `json:"problem"`
+	Cause       string `json:"cause"`
+	Evidence    string `json:"evidence"`
+	Action      string `json:"action"`
+	Severity    string `json:"severity"`
+	Timestamp   string `json:"timestamp"`
 }
 
 const alertCooldown = 10 * time.Second
@@ -53,7 +54,7 @@ func finishAlert(sent bool) {
 	}
 }
 
-func triggerAlert(sensor models.SensorPayload, result models.RCAResult, rcaID int) {
+func triggerAlert(containerID string, sensor models.SensorPayload, result models.RCAResult, rcaID int) {
 	now := time.Now().UTC()
 	if !beginAlert(now) {
 		log.Printf("[ALERT] Cooldown/in-flight active, skipping n8n trigger for machine=%s", result.MachineID)
@@ -69,13 +70,14 @@ func triggerAlert(sensor models.SensorPayload, result models.RCAResult, rcaID in
 	}
 
 	alert := AlertPayload{
-		MachineID: result.MachineID,
-		Problem:   result.Problem,
-		Cause:     result.Cause,
-		Evidence:  result.Evidence,
-		Action:    result.Action,
-		Severity:  result.Severity,
-		Timestamp: now.Format(time.RFC3339),
+		ContainerID: containerID,
+		MachineID:   result.MachineID,
+		Problem:     result.Problem,
+		Cause:       result.Cause,
+		Evidence:    result.Evidence,
+		Action:      result.Action,
+		Severity:    result.Severity,
+		Timestamp:   now.Format(time.RFC3339),
 	}
 
 	body, _ := json.Marshal(alert)
@@ -88,9 +90,10 @@ func triggerAlert(sensor models.SensorPayload, result models.RCAResult, rcaID in
 	defer resp.Body.Close()
 	finishAlert(true)
 
-	log.Printf("[ALERT] n8n triggered → status=%d machine=%s severity=%s",
+	log.Printf("[ALERT] n8n triggered → status=%d machine=%s severity=%s container=%s",
 		resp.StatusCode,
 		result.MachineID,
 		result.Severity,
+		containerID,
 	)
 }

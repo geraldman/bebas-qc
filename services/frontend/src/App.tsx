@@ -12,8 +12,22 @@ function App() {
   const [provisioning, setProvisioning] = useState<boolean>(false);
   const [provStep, setProvStep] = useState<number>(0);
 
-  // Initialize session from localStorage or show provisioning screen
+  // Initialize session from URL query params, localStorage, or show provisioning screen
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlContainerId = params.get("containerId");
+
+    if (urlContainerId) {
+      const newStart = Date.now();
+      localStorage.setItem("bebasqc_container_start", String(newStart));
+      localStorage.setItem("bebasqc_container_id", urlContainerId);
+      setSessionStart(newStart);
+      setContainerId(urlContainerId);
+      // Clean up query parameters from the address bar for clean aesthetics
+      window.history.replaceState({}, "", "/");
+      return;
+    }
+
     const storedStart = localStorage.getItem("bebasqc_container_start");
     const storedId = localStorage.getItem("bebasqc_container_id");
 
@@ -190,7 +204,7 @@ function App() {
         path === "/dashboard" ? (
           <Dashboard navigate={navigate} containerId={containerId} />
         ) : path === "/simulator" ? (
-          <Simulator navigate={navigate} containerId={containerId} />
+          <Simulator containerId={containerId} />
         ) : (
           <ControlHub navigate={navigate} />
         )

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import mqtt, { type MqttClient } from "mqtt";
 
 interface SimulatorProps {
-  navigate: (to: string) => void;
   containerId: string;
 }
 
@@ -97,7 +96,7 @@ function getSensorBounds(sensor: "temperature" | "humidity" | "vibration" | "bel
 const clamp = (val: number, min: number, max: number) => Math.min(Math.max(val, min), max);
 const randInRange = (range: number) => (Math.random() * 2 - 1) * range;
 
-export default function Simulator({ navigate, containerId }: SimulatorProps) {
+export default function Simulator({ containerId }: SimulatorProps) {
   const [connected, setConnected] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [publishInterval, setPublishInterval] = useState(2000);
@@ -386,8 +385,8 @@ export default function Simulator({ navigate, containerId }: SimulatorProps) {
         const label = payload.fault ? `[FAULT: ${payload.fault}]` : "[OK]";
         addLog(
           `${label} ${machine.id} | temp=${payload.temp_ds}°C ` +
-            `vib=${payload.vibration} speed=${payload.belt_speed} ` +
-            `defects=${payload.defect_count}`,
+          `vib=${payload.vibration} speed=${payload.belt_speed} ` +
+          `defects=${payload.defect_count}`,
           status
         );
         return prev;
@@ -475,6 +474,70 @@ export default function Simulator({ navigate, containerId }: SimulatorProps) {
       <div className="sim-status-banner">
         <div>Broker WebSocket Address: <code>{MQTT_URL}</code></div>
         <div>Active Prefix Path: <code>bebasqc/{containerId}/</code></div>
+      </div>
+
+      <div className="sim-console-controls">
+        <div className="console-settings-row">
+          <div className="interval-control-group">
+            <span className="label">Auto-Publish Rate:</span>
+            <input
+              type="number"
+              className="interval-input"
+              value={publishInterval}
+              min="500"
+              max="10000"
+              step="500"
+              onChange={(e) => setPublishInterval(Math.max(500, parseInt(e.target.value) || 1000))}
+            />
+            <span className="label">ms</span>
+          </div>
+
+          <div className="console-button-group">
+            <button
+              type="button"
+              className={`btn ${publishing ? "btn-stop-pub" : "btn-start-pub"}`}
+              onClick={() => setPublishing(!publishing)}
+            >
+              {publishing ? "■ Stop Auto-Publish" : "▶ Start Auto-Publish"}
+            </button>
+            <button type="button" className="btn btn-outline" onClick={publishAll}>
+              Publish Once (Manual)
+            </button>
+            <button type="button" className="btn btn-outline" onClick={() => setLogs([])}>
+              Clear Log Box
+            </button>
+          </div>
+        </div>
+
+        <div className="sim-log-viewer" onClick={handleLogContainerClick}>
+          <div className="log-lines-container">
+            {logs.length === 0 ? (
+              <div className="log-empty-msg">No active simulator events. Start publishing or type commands below.</div>
+            ) : (
+              logs.map((log, idx) => (
+                <div key={idx} className={`log-line ${log.type}`}>
+                  <span className="log-time">[{log.time}]</span> {log.msg}
+                </div>
+              ))
+            )}
+            <div ref={logsEndRef} />
+          </div>
+          <form onSubmit={handleCliSubmit} className="sim-cli-form">
+            <span className="cli-prompt">{containerId || "bebasqc"}&gt;</span>
+            <input
+              type="text"
+              ref={cliInputRef}
+              className="sim-cli-input"
+              value={cliInput}
+              onChange={(e) => setCliInput(e.target.value)}
+              placeholder="type 'help' for commands..."
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
+            />
+          </form>
+        </div>
       </div>
 
       <div className="sim-grid">
@@ -586,70 +649,6 @@ export default function Simulator({ navigate, containerId }: SimulatorProps) {
             </div>
           );
         })}
-      </div>
-
-      <div className="sim-console-controls">
-        <div className="console-settings-row">
-          <div className="interval-control-group">
-            <span className="label">Auto-Publish Rate:</span>
-            <input
-              type="number"
-              className="interval-input"
-              value={publishInterval}
-              min="500"
-              max="10000"
-              step="500"
-              onChange={(e) => setPublishInterval(Math.max(500, parseInt(e.target.value) || 1000))}
-            />
-            <span className="label">ms</span>
-          </div>
-
-          <div className="console-button-group">
-            <button
-              type="button"
-              className={`btn ${publishing ? "btn-stop-pub" : "btn-start-pub"}`}
-              onClick={() => setPublishing(!publishing)}
-            >
-              {publishing ? "■ Stop Auto-Publish" : "▶ Start Auto-Publish"}
-            </button>
-            <button type="button" className="btn btn-outline" onClick={publishAll}>
-              Publish Once (Manual)
-            </button>
-            <button type="button" className="btn btn-outline" onClick={() => setLogs([])}>
-              Clear Log Box
-            </button>
-          </div>
-        </div>
-
-        <div className="sim-log-viewer" onClick={handleLogContainerClick}>
-          <div className="log-lines-container">
-            {logs.length === 0 ? (
-              <div className="log-empty-msg">No active simulator events. Start publishing or type commands below.</div>
-            ) : (
-              logs.map((log, idx) => (
-                <div key={idx} className={`log-line ${log.type}`}>
-                  <span className="log-time">[{log.time}]</span> {log.msg}
-                </div>
-              ))
-            )}
-            <div ref={logsEndRef} />
-          </div>
-          <form onSubmit={handleCliSubmit} className="sim-cli-form">
-            <span className="cli-prompt">{containerId || "bebasqc"}&gt;</span>
-            <input
-              type="text"
-              ref={cliInputRef}
-              className="sim-cli-input"
-              value={cliInput}
-              onChange={(e) => setCliInput(e.target.value)}
-              placeholder="type 'help' for commands..."
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck="false"
-            />
-          </form>
-        </div>
       </div>
     </div>
   );

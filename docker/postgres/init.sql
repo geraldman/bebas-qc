@@ -30,6 +30,12 @@ CREATE TABLE IF NOT EXISTS alerts (
     sent_at     TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS telegram_subscriptions (
+    container_id     VARCHAR(50) PRIMARY KEY,
+    telegram_chat_id BIGINT NOT NULL,
+    created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Index for fast time-range queries per machine
 CREATE INDEX IF NOT EXISTS idx_sensor_machine_time
     ON sensor_readings (machine_id, created_at DESC);

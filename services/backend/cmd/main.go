@@ -94,6 +94,19 @@ func main() {
 	defer database.Close()
 	log.Println("Connected to PostgreSQL")
 
+	// Background cleanup for expired telegram subscriptions (>15 minutes old)
+	go func() {
+		for {
+			time.Sleep(1 * time.Minute)
+			res, err := database.Exec("DELETE FROM telegram_subscriptions WHERE created_at < NOW() - INTERVAL '15 minutes'")
+			if err != nil {
+				log.Printf("[CLEANUP] Failed to clear expired telegram subscriptions: %v", err)
+			} else if rows, err := res.RowsAffected(); err == nil && rows > 0 {
+				log.Printf("[CLEANUP] Cleaned up %d expired telegram subscriptions", rows)
+			}
+		}
+	}()
+
 	// Start MQTT processor (non-blocking, runs in background)
 	processor := mqtt.NewProcessor(database)
 	go processor.Start()
@@ -110,6 +123,10 @@ func main() {
 	r.Static("/assets/roboflow", imageDir)
 
 	r.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "ok"})
+	})
+
+	r.GET("/api/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
