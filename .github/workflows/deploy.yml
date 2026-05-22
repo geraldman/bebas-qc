@@ -96,7 +96,7 @@ jobs:
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.GCP_VM_IP }}
-          username: ubuntu
+          username: g3rald_dj
           key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
           script: |
             # Navigate to the app directory
