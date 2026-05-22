@@ -250,7 +250,7 @@
 
 <script>
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
-const BROKER_WS = "ws://localhost:8000/mqtt";
+const BROKER_WS = `ws://${window.location.hostname}:8000/mqtt`;
 
 const MACHINES = [
   { id: "LINE1_STN1", label: "Line 1 — Conveyor",  topic: "bebasqc/line1/station1/sensors",

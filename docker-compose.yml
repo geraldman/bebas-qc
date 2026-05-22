@@ -33,6 +33,9 @@ services:
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_NAME: ${POSTGRES_DB}
+      ROBOFLOW_IMAGE_DIR: /app/assets/roboflow
+    volumes:
+      - ./assets/roboflow:/app/assets/roboflow:ro
     ports:
       - "8080:8080"
     depends_on:

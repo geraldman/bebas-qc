@@ -18,8 +18,20 @@ import {
   type SensorReading,
 } from "./lib/thresholds";
 
-const MQTT_URL = import.meta.env.VITE_MQTT_URL || "ws://localhost:8000/mqtt";
+const MQTT_URL = import.meta.env.VITE_MQTT_URL || `ws://${window.location.hostname}:8000/mqtt`;
 const MQTT_TOPIC = import.meta.env.VITE_MQTT_TOPIC || "bebasqc/#";
+const API_BASE = import.meta.env.VITE_API_BASE || "";
+
+const withApiBase = (path: string) => {
+  if (!path) return "";
+  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:")) {
+    return path;
+  }
+  if (!API_BASE) return path;
+  const base = API_BASE.endsWith("/") ? API_BASE.slice(0, -1) : API_BASE;
+  const suffix = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${suffix}`;
+};
 
 const NORMAL_BOUNDS = {
   temp_ds: [45, 54],
@@ -76,15 +88,35 @@ const MACHINES = [
 
 const machineLabel = (id: string) => MACHINES.find((m) => m.id === id)?.label || id;
 
+type RoboflowPrediction = {
+  class?: string;
+  confidence?: number;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+};
+
+type RoboflowResult = {
+  predictions?: RoboflowPrediction[];
+  outputs?: Array<{ predictions?: RoboflowPrediction[] }>;
+};
+
 function App() {
+  const [view, setView] = useState<"landing" | "dashboard">("landing");
   const [source, setSource] = useState<"mock" | "mqtt">("mock");
   const [connected, setConnected] = useState(false);
   const [readingsByMachine, setReadingsByMachine] = useState<Record<string, SensorReading[]>>({});
   const [latestByMachine, setLatestByMachine] = useState<Record<string, SensorReading>>({});
   const [muted, setMuted] = useState(false);
   const [activeMachineId, setActiveMachineId] = useState(MACHINES[0].id);
+  const [cvResult, setCvResult] = useState<RoboflowResult | null>(null);
+  const [cvLoading, setCvLoading] = useState(false);
+  const [cvError, setCvError] = useState<string | null>(null);
+  const [monitorImage, setMonitorImage] = useState<string>("");
   const intervalRef = useRef<number | null>(null);
   const clientRef = useRef<MqttClient | null>(null);
+  const lastInferenceRef = useRef<string>("");
 
   const recordReading = (reading: SensorReading) => {
     const id = reading.machine_id || "UNKNOWN";
@@ -214,11 +246,72 @@ function App() {
   );
 
   const anomalies = useMemo(() => detectAnomalies(activeLatest), [activeLatest]);
+  const activeLevel = useMemo(() => {
+    if (anomalies.some((a) => a.severity === "critical")) return "critical";
+    if (anomalies.length > 0) return "warning";
+    return "ok";
+  }, [anomalies]);
   const status = anomalies.some((a) => a.severity === "critical")
     ? "critical"
     : allAnomalies.length > 0
       ? "warning"
       : "ok";
+
+  useEffect(() => {
+    const status = activeLevel === "ok" ? "ok" : "defect";
+    const controller = new AbortController();
+
+    fetch(`${API_BASE}/api/vision/frame?status=${status}`, { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("frame fetch failed"))))
+      .then((data: { image_url?: string }) => {
+        setMonitorImage(withApiBase(data.image_url || ""));
+      })
+      .catch(() => {
+        setMonitorImage("");
+      });
+
+    return () => controller.abort();
+  }, [activeLevel, activeMachineId]);
+
+  useEffect(() => {
+    if (!monitorImage) {
+      setCvResult(null);
+      return;
+    }
+
+    const key = `${activeMachineId}:${activeLevel}:${monitorImage}`;
+    if (lastInferenceRef.current === key) return;
+    lastInferenceRef.current = key;
+
+    const controller = new AbortController();
+    setCvLoading(true);
+    setCvError(null);
+
+    fetch(`${API_BASE}/api/vision/roboflow`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        image_url: monitorImage,
+      }),
+      signal: controller.signal,
+    })
+      .then((res) => res.json())
+      .then((data: RoboflowResult) => {
+        setCvResult(data);
+      })
+      .catch((err) => {
+        if (err?.name !== "AbortError") {
+          setCvError("Roboflow inference failed");
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setCvLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [activeMachineId, activeLevel, monitorImage]);
 
   const chartData = activeReadings.map((r) => ({
     t: new Date(r.timestamp).toLocaleTimeString("en-US", { minute: "2-digit", second: "2-digit" }),
@@ -228,6 +321,70 @@ function App() {
     belt_speed: Number(r.belt_speed.toFixed(1)),
   }));
 
+  if (view === "landing") {
+    const simulatorUrl = `http://${window.location.hostname}:4000`;
+    return (
+      <div className="hub-container">
+        <div className="glow-circle glow-circle-1" />
+        <div className="glow-circle glow-circle-2" />
+        
+        <header className="hub-header">
+          <div className="hub-badge">PROTOTYPE HUB</div>
+          <h1 className="hub-title">
+            BEBAS QC <span className="title-gradient">Control Hub</span>
+          </h1>
+          <p className="hub-subtitle">
+            An automated, industrial-grade quality control suite. Access real-time line telemetry, machine learning visual defect inspection, or publish simulated hardware sensor feeds.
+          </p>
+        </header>
+
+        <main className="hub-grid">
+          <button 
+            type="button" 
+            className="hub-card" 
+            onClick={() => setView("dashboard")}
+          >
+            <div className="hub-card-icon-wrap bg-blue-grad">
+              <svg className="hub-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" />
+                <path d="M8 21h8M12 17v4" />
+                <path d="M6 10l3-3 4 4 5-5" />
+              </svg>
+            </div>
+            <h2 className="hub-card-title">QC Monitor Dashboard</h2>
+            <p className="hub-card-desc">
+              View live telemetry streams (Temperature, Humidity, Vibration, Belt Speed) for lines and station nodes. Real-time edge camera integration with automated ML-driven product defect prediction.
+            </p>
+            <span className="hub-card-btn font-semibold">Open Dashboard →</span>
+          </button>
+
+          <a 
+            href={simulatorUrl} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="hub-card"
+          >
+            <div className="hub-card-icon-wrap bg-orange-grad">
+              <svg className="hub-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                <circle cx="12" cy="12" r="4" />
+              </svg>
+            </div>
+            <h2 className="hub-card-title">MQTT IoT Simulator</h2>
+            <p className="hub-card-desc">
+              Emulate edge devices on production lines. Set parameters, configure vibration spikes or heat surges, and test how the backend broker routes alerts and vision signals dynamically.
+            </p>
+            <span className="hub-card-btn font-semibold">Launch Simulator ↗</span>
+          </a>
+        </main>
+
+        <footer className="hub-footer">
+          <p>Bebas QC Systems &copy; {new Date().getFullYear()} &bull; Industrial Edge Intelligence</p>
+        </footer>
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard">
       <div className="header-row">
@@ -236,6 +393,14 @@ function App() {
           <p className="subtitle">Real-time IoT + AI defect intelligence</p>
         </div>
         <div className="header-actions">
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => setView("landing")}
+            style={{ marginRight: "4px" }}
+          >
+            ← Control Hub
+          </button>
           <button
             type="button"
             className="btn btn-outline btn-icon"
@@ -328,6 +493,70 @@ function App() {
           );
         })}
       </div>
+
+      <section className="monitor-panel">
+        <div className="monitor-header">
+          <div>
+            <h3>{machineLabel(activeMachineId)} Monitor</h3>
+            <p>Vision simulation + line telemetry</p>
+          </div>
+          <span className={`status-pill ${activeLevel}`}>{activeLevel.toUpperCase()}</span>
+        </div>
+        <div className="monitor-body">
+          <div className="monitor-frame">
+            {monitorImage ? (
+              <img src={monitorImage} alt={`${machineLabel(activeMachineId)} frame`} />
+            ) : (
+              <div className="monitor-empty">
+                Waiting for backend frame. Add images to assets/roboflow/ok and assets/roboflow/defect.
+              </div>
+            )}
+            {cvLoading && <div className="monitor-overlay">Running inference...</div>}
+          </div>
+          <div className="monitor-details">
+            <div className="monitor-meta">
+              <div className="meta-row">
+                <span className="meta-label">Machine</span>
+                <span className="meta-value">{activeMachineId}</span>
+              </div>
+              <div className="meta-row">
+                <span className="meta-label">Temp</span>
+                <span className="meta-value">{activeLatest ? activeLatest.temp_ds.toFixed(1) : "-"} deg C</span>
+              </div>
+              <div className="meta-row">
+                <span className="meta-label">Humidity</span>
+                <span className="meta-value">{activeLatest ? activeLatest.humidity.toFixed(1) : "-"}%</span>
+              </div>
+              <div className="meta-row">
+                <span className="meta-label">Belt Speed</span>
+                <span className="meta-value">{activeLatest ? activeLatest.belt_speed.toFixed(0) : "-"} items/min</span>
+              </div>
+              <div className="meta-row">
+                <span className="meta-label">Vibration</span>
+                <span className="meta-value">{activeLatest ? activeLatest.vibration.toFixed(2) : "-"} m/s^2</span>
+              </div>
+            </div>
+
+            <div className="monitor-results">
+              <h4>Roboflow Results</h4>
+              {cvError && <div className="monitor-error">{cvError}</div>}
+              {!cvError && !cvLoading && (!cvResult || !cvResult.predictions) && (
+                <div className="monitor-empty">No predictions yet</div>
+              )}
+              {(cvResult?.predictions || cvResult?.outputs?.[0]?.predictions) && (
+                <ul>
+                  {(cvResult.predictions || cvResult.outputs?.[0]?.predictions || []).map((p, idx) => (
+                    <li key={`${p.class}-${idx}`}>
+                      <span className="chip">{p.class || "object"}</span>
+                      <span>{p.confidence ? `${(p.confidence * 100).toFixed(0)}%` : "-"}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
 
       <div className="sensor-grid">
         <SensorCard label="Air Temp" value={activeLatest?.temp_dht} unit="deg C" />
