@@ -307,6 +307,17 @@ func main() {
 		c.JSON(200, results)
 	})
 
+	// Config info for the frontend
+	r.GET("/api/config", func(c *gin.Context) {
+		botUsername := os.Getenv("TELEGRAM_BOT_USERNAME")
+		if botUsername == "" {
+			botUsername = "BebasQcBot"
+		}
+		c.JSON(200, gin.H{
+			"telegram_bot_username": botUsername,
+		})
+	})
+
 	port := os.Getenv("BACKEND_PORT")
 	if port == "" {
 		port = "8080"

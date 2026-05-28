@@ -128,8 +128,19 @@ interface DashboardProps {
 export default function Dashboard({ navigate, containerId }: DashboardProps) {
   const { openSimulator } = useSimulator();
 
+  const [telegramBotUsername, setTelegramBotUsername] = useState("BebasQcBot");
+
   useEffect(() => {
     window.name = "bebasqc_dashboard";
+
+    fetch(`${API_BASE}/api/config`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data: { telegram_bot_username?: string }) => {
+        if (data.telegram_bot_username) {
+          setTelegramBotUsername(data.telegram_bot_username);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const mqttTopic = useMemo(() => {
@@ -397,7 +408,7 @@ export default function Dashboard({ navigate, containerId }: DashboardProps) {
             🔍 RCA Log
           </button>
           <a
-            href={`https://t.me/BebasQcBot?start=${containerId}`}
+            href={`https://t.me/${telegramBotUsername}?start=${containerId}`}
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-outline"
