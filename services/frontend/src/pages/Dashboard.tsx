@@ -511,19 +511,24 @@ export default function Dashboard({ navigate, containerId }: DashboardProps) {
             <div className="monitor-results">
               <h4>Roboflow Results</h4>
               {cvError && <div className="monitor-error">{cvError}</div>}
-              {!cvError && !cvLoading && (!cvResult || !cvResult.predictions) && (
-                <div className="monitor-empty">No predictions yet</div>
-              )}
-              {(cvResult?.predictions || cvResult?.outputs?.[0]?.predictions) && (
-                <ul>
-                  {(cvResult.predictions || cvResult.outputs?.[0]?.predictions || []).map((p, idx) => (
-                    <li key={`${p.class}-${idx}`}>
-                      <span className="chip">{p.class || "object"}</span>
-                      <span>{p.confidence ? `${(p.confidence * 100).toFixed(0)}%` : "-"}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              {(() => {
+                const preds = cvResult?.predictions;
+                const outputPreds = cvResult?.outputs?.[0]?.predictions;
+                const list = Array.isArray(preds) ? preds : Array.isArray(outputPreds) ? outputPreds : [];
+                if (list.length === 0) {
+                  return !cvError && !cvLoading && <div className="monitor-empty">No predictions yet</div>;
+                }
+                return (
+                  <ul>
+                    {list.map((p, idx) => (
+                      <li key={`${p.class || "object"}-${idx}`}>
+                        <span className="chip">{p.class || "object"}</span>
+                        <span>{p.confidence ? `${(p.confidence * 100).toFixed(0)}%` : "-"}</span>
+                      </li>
+                    ))}
+                  </ul>
+                );
+              })()}
             </div>
           </div>
         </div>

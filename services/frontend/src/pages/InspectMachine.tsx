@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import mqtt, { type MqttClient } from "mqtt";
+import Simulator from "./Simulator";
 
 const MQTT_URL = import.meta.env.VITE_MQTT_URL || `ws://${window.location.hostname}:8000/mqtt`;
 
@@ -44,6 +45,7 @@ export default function InspectMachine({ navigate, containerId }: InspectMachine
   const [activeMachineId, setActiveMachineId] = useState<string>("LINE1_STN1");
   const [alarms, setAlarms] = useState<AlarmLog[]>([]);
   const [rawPackets, setRawPackets] = useState<Record<string, TelemetryData[]>>({});
+  const [showSimulator, setShowSimulator] = useState(false);
   
   const clientRef = useRef<MqttClient | null>(null);
 
@@ -815,6 +817,14 @@ export default function InspectMachine({ navigate, containerId }: InspectMachine
             <span className={`scada-dot ${connected ? "connected" : "disconnected"}`} />
             <span>Broker: {connected ? "Connected" : "Disconnected"}</span>
           </div>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => setShowSimulator(true)}
+            style={{ backgroundColor: "#f59e0b", color: "#ffffff", borderColor: "#f59e0b" }}
+          >
+            🔌 Run IoT Simulator
+          </button>
           <button type="button" className="btn btn-outline" onClick={() => navigate("/dashboard")}>
             ← QC Dashboard
           </button>
@@ -1090,6 +1100,19 @@ export default function InspectMachine({ navigate, containerId }: InspectMachine
               </div>
             ))
           )}
+        </div>
+      </div>
+
+      {/* Simulator Drawer Panel overlay for dynamic data injection */}
+      <div className={`sim-drawer-overlay ${showSimulator ? "open" : ""}`} onClick={() => setShowSimulator(false)}>
+        <div className="sim-drawer-panel" onClick={(e) => e.stopPropagation()}>
+          <div className="sim-drawer-header">
+            <h3>IoT Edge Sensor Simulator</h3>
+            <button type="button" className="sim-drawer-close" onClick={() => setShowSimulator(false)}>✕ Close</button>
+          </div>
+          <div className="sim-drawer-body">
+            <Simulator containerId={containerId} isOverlay={true} />
+          </div>
         </div>
       </div>
     </div>
