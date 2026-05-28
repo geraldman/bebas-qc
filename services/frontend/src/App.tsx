@@ -4,98 +4,41 @@ import ControlHub from "./pages/ControlHub";
 import Dashboard from "./pages/Dashboard";
 import Simulator from "./pages/Simulator";
 import InspectMachine from "./pages/InspectMachine";
+import RCALog from "./pages/RCALog";
+
+// Persistent session: generate a stable container ID once and store it forever.
+// No 15-minute expiry — factory dashboards run 24/7.
+function getOrCreateContainerId(): string {
+  const stored = localStorage.getItem("bebasqc_container_id");
+  if (stored) return stored;
+  const newId = "bebasqc-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+  localStorage.setItem("bebasqc_container_id", newId);
+  return newId;
+}
 
 function App() {
   const [path, setPath] = useState(window.location.pathname);
-  const [sessionStart, setSessionStart] = useState<number | null>(null);
-  const [timeLeft, setTimeLeft] = useState<number>(15 * 60);
   const [containerId, setContainerId] = useState<string>("");
-  const [provisioning, setProvisioning] = useState<boolean>(false);
-  const [provStep, setProvStep] = useState<number>(0);
+  const [ready, setReady] = useState(false);
 
-  // Initialize session from URL query params, localStorage, or show provisioning screen
+  // Initialize session on mount — check URL param first (Telegram link-in), else use stored/new ID
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlContainerId = params.get("containerId");
 
     if (urlContainerId) {
-      const newStart = Date.now();
-      localStorage.setItem("bebasqc_container_start", String(newStart));
       localStorage.setItem("bebasqc_container_id", urlContainerId);
-      setSessionStart(newStart);
       setContainerId(urlContainerId);
-      // Clean up query parameters from the address bar for clean aesthetics
-      window.history.replaceState({}, "", "/");
-      return;
-    }
-
-    const storedStart = localStorage.getItem("bebasqc_container_start");
-    const storedId = localStorage.getItem("bebasqc_container_id");
-
-    if (storedStart && storedId) {
-      setSessionStart(Number(storedStart));
-      setContainerId(storedId);
+      window.history.replaceState({}, "", window.location.pathname);
     } else {
-      setProvisioning(true);
+      setContainerId(getOrCreateContainerId());
     }
+    setReady(true);
   }, []);
 
-  // Provisioning steps simulation (visual prototype details)
+  // Routing — listen to browser back/forward
   useEffect(() => {
-    if (!provisioning) return;
-
-    const steps = [
-      "Requesting new sandbox environment...",
-      "Allocating docker resources...",
-      "Initializing PostgreSQL schema & seeding data...",
-      "Setting up HiveMQ MQTT broker proxy...",
-      "Connecting Edge SmartVision model...",
-      "Container ready! Launching Control Hub..."
-    ];
-
-    const timer = setInterval(() => {
-      setProvStep((prev) => {
-        if (prev >= steps.length - 1) {
-          clearInterval(timer);
-          const newStart = Date.now();
-          const newId = "bebasqc-sandbox-" + Math.random().toString(36).substring(2, 6).toUpperCase();
-          localStorage.setItem("bebasqc_container_start", String(newStart));
-          localStorage.setItem("bebasqc_container_id", newId);
-          setSessionStart(newStart);
-          setContainerId(newId);
-          setProvisioning(false);
-          return prev;
-        }
-        return prev + 1;
-      });
-    }, 850);
-
-    return () => clearInterval(timer);
-  }, [provisioning]);
-
-  // Countdown timer logic
-  useEffect(() => {
-    if (!sessionStart) return;
-
-    const interval = setInterval(() => {
-      const elapsedSeconds = Math.floor((Date.now() - sessionStart) / 1000);
-      const remaining = 15 * 60 - elapsedSeconds;
-      if (remaining <= 0) {
-        setTimeLeft(0);
-        clearInterval(interval);
-      } else {
-        setTimeLeft(remaining);
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [sessionStart]);
-
-  // Routing popstate listener
-  useEffect(() => {
-    const handlePopState = () => {
-      setPath(window.location.pathname);
-    };
+    const handlePopState = () => setPath(window.location.pathname);
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
@@ -105,57 +48,8 @@ function App() {
     setPath(newPath);
   };
 
-  const handleLaunchNew = () => {
-    localStorage.removeItem("bebasqc_container_start");
-    localStorage.removeItem("bebasqc_container_id");
-    setSessionStart(null);
-    setTimeLeft(15 * 60);
-    setProvStep(0);
-    setProvisioning(true);
-    navigate("/");
-  };
-
-  // 1. Provisioning screen loading layout
-  if (provisioning) {
-    const steps = [
-      "Requesting new sandbox environment...",
-      "Allocating docker resources...",
-      "Initializing PostgreSQL schema & seeding data...",
-      "Setting up HiveMQ MQTT broker proxy...",
-      "Connecting Edge SmartVision model...",
-      "Container ready! Launching Control Hub..."
-    ];
-    return (
-      <div className="prov-container">
-        <div className="prov-card">
-          <div className="prov-spinner-wrap">
-            <div className="prov-spinner"></div>
-            <div className="prov-spinner-inner"></div>
-          </div>
-          <h2 className="prov-title">Provisioning Container</h2>
-          <p className="prov-subtitle">Spinning up your dedicated prototype environment...</p>
-          <div className="prov-steps">
-            {steps.map((step, idx) => {
-              let statusClass = "step-pending";
-              if (idx < provStep) statusClass = "step-done";
-              else if (idx === provStep) statusClass = "step-active";
-              return (
-                <div key={idx} className={`prov-step ${statusClass}`}>
-                  <span className="step-icon">
-                    {idx < provStep ? "✓" : idx === provStep ? "●" : "○"}
-                  </span>
-                  <span className="step-text">{step}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 2. Initial state loading guard (prevents flashing empty/uninitialized dashboard states)
-  if (sessionStart === null && !provisioning) {
+  // Loading guard — wait for containerId to be resolved from storage
+  if (!ready) {
     return (
       <div className="prov-container">
         <div className="prov-card" style={{ padding: "40px 32px", maxWidth: "360px", textAlign: "center" }}>
@@ -163,72 +57,25 @@ function App() {
             <div className="prov-spinner"></div>
             <div className="prov-spinner-inner"></div>
           </div>
-          <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#0f172a", margin: "0 0 8px" }}>Initializing Session</h3>
-          <p style={{ fontSize: "14px", color: "#64748b", margin: 0 }}>Reading sandbox credentials...</p>
+          <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#0f172a", margin: "0 0 8px" }}>Initializing</h3>
+          <p style={{ fontSize: "14px", color: "#64748b", margin: 0 }}>Loading Bebas QC...</p>
         </div>
       </div>
     );
   }
 
-
-  // Format time remaining MM:SS
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  // Route switch
+  const renderPage = () => {
+    if (path === "/dashboard") return <Dashboard navigate={navigate} containerId={containerId} />;
+    if (path === "/simulator") return <Simulator containerId={containerId} />;
+    if (path === "/inspect") return <InspectMachine navigate={navigate} containerId={containerId} />;
+    if (path === "/rca") return <RCALog navigate={navigate} />;
+    return <ControlHub navigate={navigate} />;
   };
-
-  const isExpired = timeLeft <= 0;
-
-  // Banner component
-  const sessionBanner = (
-    <div className={`session-banner ${timeLeft < 60 ? "session-warning" : ""}`}>
-      <div className="session-info">
-        <span className="session-pulse"></span>
-        <span className="session-text">
-          Container Active: <code>{containerId}</code>
-        </span>
-      </div>
-      <div className="session-timer">
-        Time remaining: <strong>{formatTime(timeLeft)}</strong>
-      </div>
-    </div>
-  );
 
   return (
     <>
-      {!isExpired && sessionBanner}
-      {isExpired && (
-        <div className="expire-overlay">
-          <div className="expire-card">
-            <div className="expire-icon-wrap">
-              <svg className="expire-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="12" />
-                <line x1="12" y1="16" x2="12.01" y2="16" />
-              </svg>
-            </div>
-            <h2 className="expire-title">Session Expired</h2>
-            <p className="expire-desc">
-              Your 15-minute personalized container sandbox has reached its limit and has been destroyed to save prototype resources.
-            </p>
-            <button className="btn" style={{ background: "#ef4444", borderColor: "#ef4444", color: "#fff", width: "100%" }} onClick={handleLaunchNew}>
-              Launch New Container
-            </button>
-          </div>
-        </div>
-      )}
-      {!isExpired && (
-        path === "/dashboard" ? (
-          <Dashboard navigate={navigate} containerId={containerId} />
-        ) : path === "/simulator" ? (
-          <Simulator containerId={containerId} />
-        ) : path === "/inspect" ? (
-          <InspectMachine navigate={navigate} containerId={containerId} />
-        ) : (
-          <ControlHub navigate={navigate} />
-        )
-      )}
+      {renderPage()}
     </>
   );
 }

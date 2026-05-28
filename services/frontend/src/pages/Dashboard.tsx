@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import mqtt, { type MqttClient } from "mqtt";
 import {
   CartesianGrid,
@@ -101,6 +101,17 @@ type RoboflowResult = {
   outputs?: Array<{ predictions?: RoboflowPrediction[] }>;
 };
 
+type RCAResult = {
+  id: number;
+  machine_id: string;
+  problem: string;
+  cause: string;
+  evidence: string;
+  action: string;
+  severity: "low" | "medium" | "high";
+  created_at: string;
+};
+
 interface DashboardProps {
   navigate: (to: string) => void;
   containerId: string;
@@ -128,9 +139,26 @@ export default function Dashboard({ navigate, containerId }: DashboardProps) {
   const [cvError, setCvError] = useState<string | null>(null);
   const [monitorImage, setMonitorImage] = useState<string>("");
   const [showSimulator, setShowSimulator] = useState(false);
+  const [latestRCA, setLatestRCA] = useState<RCAResult | null>(null);
+  const [showMqttInfo, setShowMqttInfo] = useState(false);
   const intervalRef = useRef<number | null>(null);
   const clientRef = useRef<MqttClient | null>(null);
   const lastInferenceRef = useRef<string>("");
+
+  const fetchLatestRCA = useCallback(() => {
+    fetch(`${API_BASE}/api/rca?limit=1`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data: RCAResult[]) => {
+        setLatestRCA(Array.isArray(data) && data.length > 0 ? data[0] : null);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetchLatestRCA();
+    const interval = setInterval(fetchLatestRCA, 20000);
+    return () => clearInterval(interval);
+  }, [fetchLatestRCA]);
 
   const recordReading = (reading: SensorReading) => {
     const id = reading.machine_id || "UNKNOWN";
@@ -349,7 +377,15 @@ export default function Dashboard({ navigate, containerId }: DashboardProps) {
             className="btn btn-outline"
             style={{ marginRight: "4px" }}
           >
-            🔌 Run IoT Simulator
+            🔌 IoT Simulator
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => navigate("/rca")}
+            style={{ marginRight: "4px", backgroundColor: "#6366f1", color: "#fff", borderColor: "#6366f1" }}
+          >
+            🔍 RCA Log
           </button>
           <a
             href={`https://t.me/BebasQcBot?start=${containerId}`}
@@ -358,7 +394,7 @@ export default function Dashboard({ navigate, containerId }: DashboardProps) {
             className="btn btn-outline"
             style={{ marginRight: "4px", backgroundColor: "#0088cc", color: "#ffffff", borderColor: "#0088cc" }}
           >
-            📲 Link Telegram
+            📲 Telegram
           </a>
           <button
             type="button"
@@ -366,7 +402,7 @@ export default function Dashboard({ navigate, containerId }: DashboardProps) {
             onClick={() => navigate("/")}
             style={{ marginRight: "4px" }}
           >
-            ← Control Hub
+            ← Hub
           </button>
           <button
             type="button"
@@ -393,7 +429,7 @@ export default function Dashboard({ navigate, containerId }: DashboardProps) {
             className="btn"
             onClick={() => navigate("/inspect")}
           >
-            🔍 Inspect Machine
+            🖥 Inspect Machine
           </button>
         </div>
       </div>
@@ -413,9 +449,9 @@ export default function Dashboard({ navigate, containerId }: DashboardProps) {
           )}
         </div>
         {allAnomalies.length > 0 && (
-          <a className="btn btn-outline" href="/rca">
-            Run RCA
-          </a>
+          <button className="btn btn-outline" type="button" onClick={() => navigate("/rca")}>
+            View RCA Log
+          </button>
         )}
       </div>
 
@@ -563,11 +599,64 @@ export default function Dashboard({ navigate, containerId }: DashboardProps) {
         <ChartCard title="Vibration" dataKey="vibration" color="#f59e0b" unit="m/s^2" data={chartData} />
       </div>
 
+      {/* Latest RCA Finding Card */}
+      <div className="config-card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <h3 style={{ margin: 0 }}>Latest RCA Finding</h3>
+          <button type="button" className="btn btn-outline" style={{ fontSize: 12, padding: "4px 12px" }} onClick={() => navigate("/rca")}>
+            View All →
+          </button>
+        </div>
+        {latestRCA ? (
+          <div style={
+            {
+              borderLeft: `4px solid ${{ high: "#ef4444", medium: "#f59e0b", low: "#22c55e" }[latestRCA.severity] || "#94a3b8"}`,
+              paddingLeft: 14,
+              display: "flex",
+              flexDirection: "column",
+              gap: 6
+            }
+          }>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: "0.8px", padding: "2px 8px", borderRadius: 5,
+                background: { high: "rgba(239,68,68,0.12)", medium: "rgba(245,158,11,0.12)", low: "rgba(34,197,94,0.12)" }[latestRCA.severity] || "#f1f5f9",
+                color: { high: "#ef4444", medium: "#d97706", low: "#16a34a" }[latestRCA.severity] || "#64748b",
+              }}>
+                {latestRCA.severity.toUpperCase()}
+              </span>
+              <code style={{ fontSize: 12, color: "#64748b" }}>{latestRCA.machine_id}</code>
+              <span style={{ fontSize: 12, color: "#94a3b8", marginLeft: "auto" }}>
+                {new Date(latestRCA.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+              </span>
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{latestRCA.problem}</div>
+            <div style={{ fontSize: 13, color: "#475569" }}>Cause: {latestRCA.cause}</div>
+            <div style={{ fontSize: 13, color: "#3730a3", fontWeight: 500 }}>Action: {latestRCA.action}</div>
+          </div>
+        ) : (
+          <div style={{ fontSize: 13, color: "#94a3b8", fontStyle: "italic" }}>
+            No RCA events yet. Use the IoT Simulator to trigger a fault and watch the engine analyze it.
+          </div>
+        )}
+      </div>
+
+      {/* MQTT Config (collapsible) */}
       <div className="config-card">
-        <h3>MQTT Configuration</h3>
-        <div>Broker: <code>{MQTT_URL}</code></div>
-        <div>Topic: <code>{mqttTopic}</code></div>
-        <div>ESP32 publishes: temp_dht, humidity, temp_ds, belt_speed, vibration</div>
+        <button
+          type="button"
+          style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, padding: 0, fontSize: 15, fontWeight: 600, color: "#374151" }}
+          onClick={() => setShowMqttInfo((v) => !v)}
+        >
+          <span>{showMqttInfo ? "▼" : "▶"}</span> MQTT Configuration
+        </button>
+        {showMqttInfo && (
+          <div style={{ marginTop: 10, fontSize: 13, color: "#64748b", display: "flex", flexDirection: "column", gap: 4 }}>
+            <div>Broker: <code>{MQTT_URL}</code></div>
+            <div>Topic: <code>{mqttTopic}</code></div>
+            <div>ESP32 publishes: temp_dht, humidity, temp_ds, belt_speed, vibration</div>
+          </div>
+        )}
       </div>
 
       <div className={`sim-drawer-overlay ${showSimulator ? "open" : ""}`} onClick={() => setShowSimulator(false)}>

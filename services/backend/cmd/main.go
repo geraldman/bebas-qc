@@ -94,18 +94,7 @@ func main() {
 	defer database.Close()
 	log.Println("Connected to PostgreSQL")
 
-	// Background cleanup for expired telegram subscriptions (>15 minutes old)
-	go func() {
-		for {
-			time.Sleep(1 * time.Minute)
-			res, err := database.Exec("DELETE FROM telegram_subscriptions WHERE created_at < NOW() - INTERVAL '15 minutes'")
-			if err != nil {
-				log.Printf("[CLEANUP] Failed to clear expired telegram subscriptions: %v", err)
-			} else if rows, err := res.RowsAffected(); err == nil && rows > 0 {
-				log.Printf("[CLEANUP] Cleaned up %d expired telegram subscriptions", rows)
-			}
-		}
-	}()
+
 
 	// Start MQTT processor (non-blocking, runs in background)
 	processor := mqtt.NewProcessor(database)
@@ -295,6 +284,27 @@ func main() {
 			"status":    status,
 			"count":     len(files),
 		})
+	})
+
+	// RCA Results — core output of the analysis pipeline
+	r.GET("/api/rca", func(c *gin.Context) {
+		machineID := c.Query("machine_id")
+		limitStr := c.DefaultQuery("limit", "100")
+		limit := 100
+		if v, err := fmt.Sscanf(limitStr, "%d", &limit); err != nil || v == 0 || limit <= 0 {
+			limit = 100
+		}
+		if limit > 500 {
+			limit = 500
+		}
+
+		results, err := appdb.GetRCAResults(database, machineID, limit)
+		if err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(200, results)
 	})
 
 	port := os.Getenv("BACKEND_PORT")

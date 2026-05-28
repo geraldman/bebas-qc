@@ -1571,3 +1571,384 @@
 .sim-drawer-body .sim-grid {
   grid-template-columns: 1fr; /* Single column in the narrow drawer */
 }
+
+/* ══════════════════════════════════════════════
+   RCA LOG PAGE
+   ══════════════════════════════════════════════ */
+.rca-log-page {
+  min-height: 100vh;
+  background: #f8fafc;
+  padding: 0 0 60px;
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+}
+
+.rca-log-header {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #1e3a5f 100%);
+  padding: 32px 40px 28px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+.rca-log-title-block {
+  flex: 1;
+  min-width: 280px;
+}
+
+.rca-log-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin: 8px 0 6px;
+  letter-spacing: -0.3px;
+}
+
+.rca-log-subtitle {
+  font-size: 14px;
+  color: #94a3b8;
+  margin: 0;
+  max-width: 520px;
+  line-height: 1.6;
+}
+
+.rca-summary-pills {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.rca-pill {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px;
+  padding: 12px 18px;
+  text-align: center;
+  min-width: 80px;
+}
+
+.rca-pill-total {
+  background: rgba(99,102,241,0.18);
+  border-color: rgba(99,102,241,0.4);
+}
+
+.rca-pill-num {
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+  color: #f1f5f9;
+  line-height: 1;
+}
+
+.rca-pill-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: #94a3b8;
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Toolbar */
+.rca-toolbar {
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 14px 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+
+.rca-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.rca-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.rca-search {
+  padding: 8px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+  min-width: 220px;
+  transition: border-color 0.2s;
+  background: #f8fafc;
+}
+
+.rca-search:focus {
+  border-color: #6366f1;
+  background: #fff;
+}
+
+.rca-select {
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.rca-select:focus {
+  border-color: #6366f1;
+}
+
+.rca-auto-refresh {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #64748b;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.rca-last-refreshed {
+  font-size: 12px;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+/* Loading & empty states */
+.rca-loading {
+  padding: 80px 40px;
+  text-align: center;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.rca-error {
+  margin: 24px 40px;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 12px;
+  padding: 18px 22px;
+  color: #991b1b;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.rca-empty {
+  padding: 80px 40px;
+  text-align: center;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.rca-empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.rca-empty h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0 0 10px;
+}
+
+.rca-empty p {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.7;
+  margin: 0;
+}
+
+/* Results list */
+.rca-results-list {
+  padding: 20px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rca-results-count {
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+/* Individual result card */
+.rca-result-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+
+.rca-result-card:hover {
+  box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+}
+
+.rca-result-card.expanded {
+  box-shadow: 0 4px 20px rgba(0,0,0,0.09);
+}
+
+.rca-result-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  gap: 12px;
+}
+
+.rca-result-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+}
+
+.rca-severity-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  padding: 3px 9px;
+  border-radius: 6px;
+}
+
+.rca-result-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.rca-result-problem {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rca-result-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+
+.rca-machine-chip {
+  font-size: 11px;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: #475569;
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-family: 'Courier New', monospace;
+}
+
+.rca-time {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.rca-time-abs {
+  font-size: 12px;
+  color: #b0bad4;
+}
+
+.rca-expand-icon {
+  font-size: 11px;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+/* Expanded detail */
+.rca-result-detail {
+  border-top: 1px solid #f1f5f9;
+  background: #fafbfc;
+  padding: 18px 20px;
+  animation: slideDown 0.18s ease;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.rca-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .rca-detail-grid { grid-template-columns: 1fr; }
+  .rca-log-header { padding: 24px 20px; }
+  .rca-toolbar { padding: 12px 20px; }
+  .rca-results-list { padding: 16px 20px; }
+}
+
+.rca-detail-block {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.rca-detail-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.rca-detail-value {
+  font-size: 13.5px;
+  color: #1e293b;
+  line-height: 1.6;
+}
+
+.rca-evidence {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  background: #f1f5f9;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: #475569;
+}
+
+.rca-action-block {
+  grid-column: 1 / -1;
+}
+
+.rca-action {
+  background: linear-gradient(90deg, rgba(99,102,241,0.08), rgba(99,102,241,0.03));
+  border: 1px solid rgba(99,102,241,0.18);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #3730a3;
+  font-weight: 500;
+}

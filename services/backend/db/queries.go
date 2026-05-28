@@ -53,6 +53,28 @@ func GetRecentReadings(db *sqlx.DB, machineID string, limit int) ([]models.Senso
 	return readings, err
 }
 
+func GetRCAResults(db *sqlx.DB, machineID string, limit int) ([]models.RCAResult, error) {
+	var results []models.RCAResult
+	var err error
+	if machineID != "" {
+		err = db.Select(&results, `
+			SELECT * FROM rca_results
+			WHERE machine_id = $1
+			ORDER BY created_at DESC
+			LIMIT $2`,
+			machineID, limit,
+		)
+	} else {
+		err = db.Select(&results, `
+			SELECT * FROM rca_results
+			ORDER BY created_at DESC
+			LIMIT $1`,
+			limit,
+		)
+	}
+	return results, err
+}
+
 func GetAverageVibration(db *sqlx.DB, machineID string, minutes int) float64 {
 	var avg float64
 	db.QueryRow(`
