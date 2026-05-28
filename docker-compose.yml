@@ -89,6 +89,7 @@ services:
       - redis_data:/data
     networks:
       - bebasqc_network
+    restart: unless-stopped
   
   hivemq:
     image: hivemq/hivemq-ce:latest
@@ -98,17 +99,13 @@ services:
       - "8000:8000"     # WebSocket
     volumes:
       - ./docker/hivemq/config/config.xml:/opt/hivemq/conf/config.xml
-      - ./docker/hivemq/data:/opt/hivemq/data
-      - ./docker/hivemq/log:/opt/hivemq/log
+      - hivemq_data:/opt/hivemq/data
+      - hivemq_log:/opt/hivemq/log
     environment:
       - HIVEMQ_ALLOW_ALL_CONNECTIONS=true   # pls change/config it before prod
     networks:
       - bebasqc_network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8090"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+    restart: unless-stopped
 
   n8n:
     image: n8nio/n8n:latest
@@ -150,6 +147,8 @@ volumes:
   postgres_data:
   redis_data:
   n8n_data:
+  hivemq_data:
+  hivemq_log:
 
 networks:
   bebasqc_network:
