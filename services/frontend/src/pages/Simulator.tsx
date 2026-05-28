@@ -103,6 +103,11 @@ export default function Simulator({ containerId, isOverlay = false }: SimulatorP
   const [publishInterval, setPublishInterval] = useState(2000);
   const [logs, setLogs] = useState<Array<{ time: string; msg: string; type: string }>>([]);
   const [cliInput, setCliInput] = useState("");
+  const [activityPaused, setActivityPaused] = useState(false);
+  const [pauseReason, setPauseReason] = useState("");
+
+  const lastInteractionRef = useRef<number>(Date.now());
+  const sessionStartRef = useRef<number>(Date.now());
 
   const [machineData, setMachineData] = useState<Record<string, MachineState>>(() => {
     const init: Record<string, MachineState> = {};
@@ -395,16 +400,22 @@ export default function Simulator({ containerId, isOverlay = false }: SimulatorP
     });
   };
 
+  const isPublishingActive = publishing && !activityPaused;
+
   // Manage auto publish interval
   useEffect(() => {
-    if (publishing) {
+    if (isPublishingActive) {
       intervalIdRef.current = window.setInterval(publishAll, publishInterval);
-      addLog(`Auto-publishing started (every ${publishInterval}ms)`, "info");
+      addLog(`Auto-publishing active (every ${publishInterval}ms)`, "info");
     } else {
       if (intervalIdRef.current) {
         clearInterval(intervalIdRef.current);
         intervalIdRef.current = null;
-        addLog("Auto-publishing stopped", "info");
+        if (activityPaused) {
+          addLog(`Auto-publishing suspended (${pauseReason})`, "warn");
+        } else {
+          addLog("Auto-publishing stopped", "info");
+        }
       }
     }
 
@@ -413,7 +424,86 @@ export default function Simulator({ containerId, isOverlay = false }: SimulatorP
         clearInterval(intervalIdRef.current);
       }
     };
-  }, [publishing, publishInterval]);
+  }, [isPublishingActive, publishInterval, activityPaused, pauseReason]);
+
+  // Inactivity, Visibility & Session Duration Optimization
+  useEffect(() => {
+    // 1. User Interaction Listeners to reset idle state
+    const resetIdle = () => {
+      lastInteractionRef.current = Date.now();
+      setActivityPaused((prev) => {
+        if (prev && pauseReason === "user inactivity") {
+          addLog("User activity detected. Resuming simulation.", "info");
+          return false;
+        }
+        return prev;
+      });
+    };
+
+    window.addEventListener("mousemove", resetIdle);
+    window.addEventListener("mousedown", resetIdle);
+    window.addEventListener("keydown", resetIdle);
+    window.addEventListener("scroll", resetIdle);
+    window.addEventListener("click", resetIdle);
+
+    // 2. Visibility Listener (tab focus/blur)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        setActivityPaused(true);
+        setPauseReason("tab backgrounded");
+        addLog("Tab hidden. Suspending simulation to save compute.", "warn");
+      } else {
+        setActivityPaused((prev) => {
+          if (prev && pauseReason === "tab backgrounded") {
+            addLog("Tab visible. Resuming simulation.", "info");
+            return false;
+          }
+          return prev;
+        });
+        lastInteractionRef.current = Date.now();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // 3. Polling check for idle and session limit (every 1 second)
+    const checkTimer = setInterval(() => {
+      const now = Date.now();
+      
+      if (publishing && !activityPaused) {
+        // A. Check for 5-minute inactivity (300,000 ms)
+        const idleDuration = now - lastInteractionRef.current;
+        if (idleDuration >= 300000) {
+          setActivityPaused(true);
+          setPauseReason("user inactivity");
+          addLog("Simulation suspended due to 5 minutes of user inactivity.", "warn");
+        }
+
+        // B. Check for 30-minute session cap (1,800,000 ms)
+        const activeDuration = now - sessionStartRef.current;
+        if (activeDuration >= 1800000) {
+          setPublishing(false);
+          setActivityPaused(true);
+          setPauseReason("session time limit");
+          addLog("Simulation stopped: 30-minute continuous run safety cap reached.", "warn");
+        }
+      }
+    }, 1000);
+
+    if (publishing) {
+      sessionStartRef.current = Date.now();
+    }
+
+    return () => {
+      window.removeEventListener("mousemove", resetIdle);
+      window.removeEventListener("mousedown", resetIdle);
+      window.removeEventListener("keydown", resetIdle);
+      window.removeEventListener("scroll", resetIdle);
+      window.removeEventListener("click", resetIdle);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      clearInterval(checkTimer);
+    };
+  }, [publishing, activityPaused, pauseReason]);
 
   const handleToggleFault = (machineId: string, fault: string | null) => {
     setMachineData((prev) => {
@@ -449,7 +539,31 @@ export default function Simulator({ containerId, isOverlay = false }: SimulatorP
   };
 
   return (
-    <div className="simulator-page">
+    <div className="simulator-page" style={{ position: "relative" }}>
+      {activityPaused && (
+        <div className="sim-paused-overlay">
+          <div className="sim-paused-card">
+            <h4>Simulation Suspended</h4>
+            <p>
+              Auto-publishing is paused due to {pauseReason} to conserve compute resources.
+            </p>
+            <button
+              type="button"
+              className="btn btn-resume"
+              onClick={() => {
+                setActivityPaused(false);
+                lastInteractionRef.current = Date.now();
+                sessionStartRef.current = Date.now();
+                if (pauseReason === "session time limit") {
+                  setPublishing(true);
+                }
+              }}
+            >
+              Resume Simulation
+            </button>
+          </div>
+        </div>
+      )}
       {!isOverlay && (
         <div className="header-row">
           <div>

@@ -1951,4 +1951,65 @@
   padding: 10px 14px;
   color: #3730a3;
   font-weight: 500;
+}
+
+/* Simulator Suspend/Pause Overlay */
+.sim-paused-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  border-radius: 16px;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.sim-paused-card {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 320px;
+  text-align: center;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.sim-paused-card h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #f1f5f9;
+  letter-spacing: -0.3px;
+}
+
+.sim-paused-card p {
+  margin: 0;
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.sim-paused-card .btn-resume {
+  background: #0ea5e9;
+  color: #ffffff;
+  border: none;
+  font-weight: 600;
+  width: 100%;
+}
+
+.sim-paused-card .btn-resume:hover {
+  background: #0284c7;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
