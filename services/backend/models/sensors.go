@@ -16,25 +16,25 @@ type SensorPayload struct {
 }
 
 type SensorReading struct {
-	ID          int       `db:"id"`
-	MachineID   string    `db:"machine_id"`
-	MachineType string    `db:"machine_type"`
-	Temperature float64   `db:"temperature"`
-	Humidity    float64   `db:"humidity"`
-	Vibration   float64   `db:"vibration"`
-	BeltSpeed   float64   `db:"belt_speed"`
-	DefectCount int       `db:"defect_count"`
-	Fault       *string   `db:"fault"`
-	CreatedAt   time.Time `db:"created_at"`
+	ID          int       `db:"id" json:"id"`
+	MachineID   string    `db:"machine_id" json:"machine_id"`
+	MachineType string    `db:"machine_type" json:"machine_type"`
+	Temperature float64   `db:"temperature" json:"temperature"`
+	Humidity    float64   `db:"humidity" json:"humidity"`
+	Vibration   float64   `db:"vibration" json:"vibration"`
+	BeltSpeed   float64   `db:"belt_speed" json:"belt_speed"`
+	DefectCount int       `db:"defect_count" json:"defect_count"`
+	Fault       *string   `db:"fault" json:"fault"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 }
 
 type RCAResult struct {
-	ID        int       `db:"id"`
-	MachineID string    `db:"machine_id"`
-	Problem   string    `db:"problem"`
-	Cause     string    `db:"cause"`
-	Evidence  string    `db:"evidence"`
-	Action    string    `db:"action"`
-	Severity  string    `db:"severity"`
-	CreatedAt time.Time `db:"created_at"`
+	ID        int       `db:"id" json:"id"`
+	MachineID string    `db:"machine_id" json:"machine_id"`
+	Problem   string    `db:"problem" json:"problem"`
+	Cause     string    `db:"cause" json:"cause"`
+	Evidence  string    `db:"evidence" json:"evidence"`
+	Action    string    `db:"action" json:"action"`
+	Severity  string    `db:"severity" json:"severity"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }

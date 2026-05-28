@@ -103,13 +103,21 @@ type RoboflowResult = {
 
 type RCAResult = {
   id: number;
+  ID?: number;
   machine_id: string;
+  MachineID?: string;
   problem: string;
+  Problem?: string;
   cause: string;
+  Cause?: string;
   evidence: string;
+  Evidence?: string;
   action: string;
+  Action?: string;
   severity: "low" | "medium" | "high";
+  Severity?: "low" | "medium" | "high";
   created_at: string;
+  CreatedAt?: string;
 };
 
 interface DashboardProps {
@@ -608,38 +616,50 @@ export default function Dashboard({ navigate, containerId }: DashboardProps) {
             View All →
           </button>
         </div>
-        {latestRCA ? (
-          <div style={
-            {
-              borderLeft: `4px solid ${{ high: "#ef4444", medium: "#f59e0b", low: "#22c55e" }[latestRCA.severity] || "#94a3b8"}`,
-              paddingLeft: 14,
-              display: "flex",
-              flexDirection: "column",
-              gap: 6
-            }
-          }>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{
-                fontSize: 10, fontWeight: 700, letterSpacing: "0.8px", padding: "2px 8px", borderRadius: 5,
-                background: { high: "rgba(239,68,68,0.12)", medium: "rgba(245,158,11,0.12)", low: "rgba(34,197,94,0.12)" }[latestRCA.severity ?? ""] ?? "#f1f5f9",
-                color: { high: "#ef4444", medium: "#d97706", low: "#16a34a" }[latestRCA.severity ?? ""] ?? "#64748b",
-              }}>
-                {(latestRCA.severity ?? "unknown").toUpperCase()}
-              </span>
-              <code style={{ fontSize: 12, color: "#64748b" }}>{latestRCA.machine_id}</code>
-              <span style={{ fontSize: 12, color: "#94a3b8", marginLeft: "auto" }}>
-                {new Date(latestRCA.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-              </span>
+        {(() => {
+          if (!latestRCA) {
+            return (
+              <div style={{ fontSize: 13, color: "#94a3b8", fontStyle: "italic" }}>
+                No RCA events yet. Use the IoT Simulator to trigger a fault and watch the engine analyze it.
+              </div>
+            );
+          }
+          const severity = (latestRCA.severity ?? latestRCA.Severity ?? "unknown").toLowerCase();
+          const created_at = latestRCA.created_at ?? latestRCA.CreatedAt;
+          const problem = latestRCA.problem ?? latestRCA.Problem;
+          const cause = latestRCA.cause ?? latestRCA.Cause;
+          const action = latestRCA.action ?? latestRCA.Action;
+          const machine_id = latestRCA.machine_id ?? latestRCA.MachineID;
+
+          return (
+            <div style={
+              {
+                borderLeft: `4px solid ${{ high: "#ef4444", medium: "#f59e0b", low: "#22c55e" }[severity] || "#94a3b8"}`,
+                paddingLeft: 14,
+                display: "flex",
+                flexDirection: "column",
+                gap: 6
+              }
+            }>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: "0.8px", padding: "2px 8px", borderRadius: 5,
+                  background: { high: "rgba(239,68,68,0.12)", medium: "rgba(245,158,11,0.12)", low: "rgba(34,197,94,0.12)" }[severity] ?? "#f1f5f9",
+                  color: { high: "#ef4444", medium: "#d97706", low: "#16a34a" }[severity] ?? "#64748b",
+                }}>
+                  {severity.toUpperCase()}
+                </span>
+                <code style={{ fontSize: 12, color: "#64748b" }}>{machine_id}</code>
+                <span style={{ fontSize: 12, color: "#94a3b8", marginLeft: "auto" }}>
+                  {created_at ? new Date(created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
+                </span>
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{problem}</div>
+              <div style={{ fontSize: 13, color: "#475569" }}>Cause: {cause}</div>
+              <div style={{ fontSize: 13, color: "#3730a3", fontWeight: 500 }}>Action: {action}</div>
             </div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{latestRCA.problem}</div>
-            <div style={{ fontSize: 13, color: "#475569" }}>Cause: {latestRCA.cause}</div>
-            <div style={{ fontSize: 13, color: "#3730a3", fontWeight: 500 }}>Action: {latestRCA.action}</div>
-          </div>
-        ) : (
-          <div style={{ fontSize: 13, color: "#94a3b8", fontStyle: "italic" }}>
-            No RCA events yet. Use the IoT Simulator to trigger a fault and watch the engine analyze it.
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* MQTT Config (collapsible) */}

@@ -34,13 +34,21 @@ interface AlarmLog {
 
 interface RCAResult {
   id: number;
+  ID?: number;
   machine_id: string;
+  MachineID?: string;
   problem: string;
+  Problem?: string;
   cause: string;
+  Cause?: string;
   evidence: string;
+  Evidence?: string;
   action: string;
+  Action?: string;
   severity: "low" | "medium" | "high";
+  Severity?: "low" | "medium" | "high";
   created_at: string;
+  CreatedAt?: string;
 }
 
 const MACHINES = [
@@ -993,35 +1001,44 @@ export default function InspectMachine({ navigate, containerId }: InspectMachine
                   No RCA findings for this machine.
                 </div>
               ) : (
-                rcaFindings.map((finding) => (
-                  <div key={finding.id} style={{
-                    backgroundColor: "rgba(30, 41, 59, 0.4)",
-                    border: "1px solid #1e293b",
-                    borderLeft: `3px solid ${{ high: "#ef4444", medium: "#f59e0b", low: "#10b981" }[finding.severity] || "#64748b"}`,
-                    borderRadius: "6px",
-                    padding: "8px 10px",
-                    fontSize: "11px",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "4px"
-                  }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{
-                        fontSize: "8px", fontWeight: "bold", padding: "1px 4px", borderRadius: "3px",
-                        backgroundColor: { high: "rgba(239,68,68,0.12)", medium: "rgba(245,158,11,0.12)", low: "rgba(16,185,129,0.12)" }[finding.severity] || "#1e293b",
-                        color: { high: "#ef4444", medium: "#f59e0b", low: "#10b981" }[finding.severity] || "#94a3b8"
-                      }}>
-                        {finding.severity.toUpperCase()}
-                      </span>
-                      <span style={{ color: "#475569", fontSize: "9px" }}>
-                        {new Date(finding.created_at).toLocaleTimeString()}
-                      </span>
+                rcaFindings.map((finding, idx) => {
+                  const severity = (finding.severity ?? finding.Severity ?? "unknown").toLowerCase();
+                  const created_at = finding.created_at ?? finding.CreatedAt;
+                  const problem = finding.problem ?? finding.Problem;
+                  const cause = finding.cause ?? finding.Cause;
+                  const action = finding.action ?? finding.Action;
+                  const id = finding.id ?? finding.ID ?? idx;
+
+                  return (
+                    <div key={id} style={{
+                      backgroundColor: "rgba(30, 41, 59, 0.4)",
+                      border: "1px solid #1e293b",
+                      borderLeft: `3px solid ${{ high: "#ef4444", medium: "#f59e0b", low: "#10b981" }[severity] || "#64748b"}`,
+                      borderRadius: "6px",
+                      padding: "8px 10px",
+                      fontSize: "11px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "4px"
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{
+                          fontSize: "8px", fontWeight: "bold", padding: "1px 4px", borderRadius: "3px",
+                          backgroundColor: { high: "rgba(239,68,68,0.12)", medium: "rgba(245,158,11,0.12)", low: "rgba(16,185,129,0.12)" }[severity] || "#1e293b",
+                          color: { high: "#ef4444", medium: "#f59e0b", low: "#10b981" }[severity] || "#94a3b8"
+                        }}>
+                          {severity.toUpperCase()}
+                        </span>
+                        <span style={{ color: "#475569", fontSize: "9px" }}>
+                          {created_at ? new Date(created_at).toLocaleTimeString() : "—"}
+                        </span>
+                      </div>
+                      <div style={{ fontWeight: "bold", color: "#f1f5f9" }}>{problem}</div>
+                      <div style={{ color: "#94a3b8" }}>Root Cause: {cause}</div>
+                      <div style={{ color: "#38bdf8" }}>Mitigation: {action}</div>
                     </div>
-                    <div style={{ fontWeight: "bold", color: "#f1f5f9" }}>{finding.problem}</div>
-                    <div style={{ color: "#94a3b8" }}>Root Cause: {finding.cause}</div>
-                    <div style={{ color: "#38bdf8" }}>Mitigation: {finding.action}</div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
