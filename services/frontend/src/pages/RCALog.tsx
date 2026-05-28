@@ -270,8 +270,8 @@ export default function RCALog({ navigate }: RCALogProps) {
           {filtered.map((result) => (
             <div
               key={result.id}
-              className={`rca-result-card sev-${result.severity} ${expandedId === result.id ? "expanded" : ""}`}
-              style={{ borderLeftColor: SEVERITY_COLOR[result.severity] }}
+              className={`rca-result-card sev-${result.severity ?? "unknown"} ${expandedId === result.id ? "expanded" : ""}`}
+              style={{ borderLeftColor: SEVERITY_COLOR[result.severity ?? ""] ?? "#94a3b8" }}
             >
               <button
                 type="button"
@@ -282,12 +282,12 @@ export default function RCALog({ navigate }: RCALogProps) {
                   <span
                     className="rca-severity-badge"
                     style={{
-                      background: SEVERITY_BG[result.severity],
-                      color: SEVERITY_COLOR[result.severity],
-                      border: `1px solid ${SEVERITY_COLOR[result.severity]}`,
+                      background: SEVERITY_BG[result.severity ?? ""] ?? "rgba(148,163,184,0.12)",
+                      color: SEVERITY_COLOR[result.severity ?? ""] ?? "#64748b",
+                      border: `1px solid ${SEVERITY_COLOR[result.severity ?? ""] ?? "#94a3b8"}`,
                     }}
                   >
-                    {result.severity.toUpperCase()}
+                    {(result.severity ?? "unknown").toUpperCase()}
                   </span>
                   <div className="rca-result-info">
                     <div className="rca-result-problem">{result.problem}</div>

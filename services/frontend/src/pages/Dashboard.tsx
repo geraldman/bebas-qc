@@ -620,10 +620,10 @@ export default function Dashboard({ navigate, containerId }: DashboardProps) {
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{
                 fontSize: 10, fontWeight: 700, letterSpacing: "0.8px", padding: "2px 8px", borderRadius: 5,
-                background: { high: "rgba(239,68,68,0.12)", medium: "rgba(245,158,11,0.12)", low: "rgba(34,197,94,0.12)" }[latestRCA.severity] || "#f1f5f9",
-                color: { high: "#ef4444", medium: "#d97706", low: "#16a34a" }[latestRCA.severity] || "#64748b",
+                background: { high: "rgba(239,68,68,0.12)", medium: "rgba(245,158,11,0.12)", low: "rgba(34,197,94,0.12)" }[latestRCA.severity ?? ""] ?? "#f1f5f9",
+                color: { high: "#ef4444", medium: "#d97706", low: "#16a34a" }[latestRCA.severity ?? ""] ?? "#64748b",
               }}>
-                {latestRCA.severity.toUpperCase()}
+                {(latestRCA.severity ?? "unknown").toUpperCase()}
               </span>
               <code style={{ fontSize: 12, color: "#64748b" }}>{latestRCA.machine_id}</code>
               <span style={{ fontSize: 12, color: "#94a3b8", marginLeft: "auto" }}>
