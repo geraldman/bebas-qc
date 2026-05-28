@@ -216,14 +216,16 @@ export default function InspectMachine({ navigate, containerId }: InspectMachine
             linear-gradient(rgba(18, 30, 49, 0.3) 1px, transparent 1px),
             linear-gradient(90deg, rgba(18, 30, 49, 0.3) 1px, transparent 1px);
           background-size: 24px 24px;
-          min-height: 100vh;
+          height: 100vh;
+          max-height: 100vh;
+          overflow: hidden;
           color: #94a3b8;
           font-family: 'Space Grotesk', -apple-system, sans-serif;
-          padding: 24px;
+          padding: 16px;
           box-sizing: border-box;
           display: flex;
           flex-direction: column;
-          gap: 20px;
+          gap: 16px;
         }
 
         .scada-header {
@@ -234,8 +236,9 @@ export default function InspectMachine({ navigate, containerId }: InspectMachine
           backdrop-filter: blur(8px);
           border: 1px solid #1e293b;
           border-radius: 12px;
-          padding: 16px 24px;
+          padding: 12px 24px;
           box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+          flex-shrink: 0;
         }
 
         .scada-logo {
@@ -297,13 +300,20 @@ export default function InspectMachine({ navigate, containerId }: InspectMachine
         .scada-layout {
           display: grid;
           grid-template-columns: 1fr 380px;
-          gap: 20px;
+          gap: 16px;
           flex-grow: 1;
+          min-height: 0;
+          height: 0; /* Let flexbox control height */
         }
 
         @media (max-width: 1024px) {
           .scada-layout {
-            grid-template-columns: 1fr;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            flex-grow: 1;
+            min-height: 0;
+            height: 0;
           }
         }
 
@@ -311,14 +321,25 @@ export default function InspectMachine({ navigate, containerId }: InspectMachine
           background: rgba(8, 12, 20, 0.95);
           border: 1px solid #1e293b;
           border-radius: 16px;
-          padding: 24px;
+          padding: 16px;
           box-shadow: inset 0 2px 8px 0 rgba(0, 0, 0, 0.8), 0 10px 30px rgba(0, 0, 0, 0.5);
           position: relative;
           display: flex;
           flex-direction: column;
           justify-content: center;
           align-items: center;
-          min-height: 580px;
+          width: 100%;
+          height: 100%;
+          min-height: 0;
+          overflow: hidden;
+          box-sizing: border-box;
+        }
+
+        @media (max-width: 1024px) {
+          .scada-canvas {
+            flex: 0 0 260px;
+            min-height: 260px;
+          }
         }
 
         .canvas-label {
@@ -335,8 +356,9 @@ export default function InspectMachine({ navigate, containerId }: InspectMachine
         /* SVG Schematic Styles */
         .scada-svg {
           width: 100%;
-          max-width: 960px;
-          height: auto;
+          height: 100%;
+          max-width: 100%;
+          max-height: 100%;
           overflow: visible;
         }
 
@@ -552,11 +574,22 @@ export default function InspectMachine({ navigate, containerId }: InspectMachine
           background: rgba(15, 23, 42, 0.95);
           border: 1px solid #1e293b;
           border-radius: 16px;
-          padding: 24px;
+          padding: 16px;
           box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
           display: flex;
           flex-direction: column;
-          gap: 20px;
+          gap: 16px;
+          height: 100%;
+          overflow-y: auto;
+          box-sizing: border-box;
+          min-height: 0;
+        }
+
+        @media (max-width: 1024px) {
+          .scada-inspector {
+            flex-grow: 1;
+            height: auto;
+          }
         }
 
         .inspector-header {
@@ -761,9 +794,11 @@ export default function InspectMachine({ navigate, containerId }: InspectMachine
           background: rgba(15, 23, 42, 0.85);
           border: 1px solid #1e293b;
           border-radius: 12px;
-          padding: 16px 20px;
-          max-height: 180px;
+          padding: 12px 16px;
+          height: 120px;
+          flex-shrink: 0;
           overflow-y: auto;
+          box-sizing: border-box;
         }
 
         .alarms-title-bar {
