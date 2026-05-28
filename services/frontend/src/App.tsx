@@ -153,6 +153,23 @@ function App() {
     );
   }
 
+  // 2. Initial state loading guard (prevents flashing empty/uninitialized dashboard states)
+  if (sessionStart === null && !provisioning) {
+    return (
+      <div className="prov-container">
+        <div className="prov-card" style={{ padding: "40px 32px", maxWidth: "360px", textAlign: "center" }}>
+          <div className="prov-spinner-wrap" style={{ margin: "0 auto 20px" }}>
+            <div className="prov-spinner"></div>
+            <div className="prov-spinner-inner"></div>
+          </div>
+          <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#0f172a", margin: "0 0 8px" }}>Initializing Session</h3>
+          <p style={{ fontSize: "14px", color: "#64748b", margin: 0 }}>Reading sandbox credentials...</p>
+        </div>
+      </div>
+    );
+  }
+
+
   // Format time remaining MM:SS
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
