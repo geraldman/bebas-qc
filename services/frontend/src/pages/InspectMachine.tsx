@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import mqtt, { type MqttClient } from "mqtt";
-import Simulator from "./Simulator";
+import { useSimulator } from "../SimulatorContext";
 
 const MQTT_URL = import.meta.env.VITE_MQTT_URL || `ws://${window.location.hostname}:8000/mqtt`;
 
@@ -32,6 +32,17 @@ interface AlarmLog {
   severity: "warning" | "critical" | "resolved";
 }
 
+interface RCAResult {
+  id: number;
+  machine_id: string;
+  problem: string;
+  cause: string;
+  evidence: string;
+  action: string;
+  severity: "low" | "medium" | "high";
+  created_at: string;
+}
+
 const MACHINES = [
   { id: "LINE1_STN1", label: "Line 1 — Conveyor", suffix: "line1/station1/sensors", defaults: { temp: 49.5, speed: 110.0, vibration: 2.35 } },
   { id: "LINE1_STN2", label: "Line 1 — Labeler", suffix: "line1/station2/sensors", defaults: { temp: 49.5, speed: 110.0, vibration: 2.35 } },
@@ -40,12 +51,13 @@ const MACHINES = [
 ];
 
 export default function InspectMachine({ navigate, containerId }: InspectMachineProps) {
+  const { openSimulator } = useSimulator();
   const [connected, setConnected] = useState(false);
   const [telemetry, setTelemetry] = useState<Record<string, TelemetryData>>({});
   const [activeMachineId, setActiveMachineId] = useState<string>("LINE1_STN1");
   const [alarms, setAlarms] = useState<AlarmLog[]>([]);
   const [rawPackets, setRawPackets] = useState<Record<string, TelemetryData[]>>({});
-  const [showSimulator, setShowSimulator] = useState(false);
+  const [rcaFindings, setRcaFindings] = useState<RCAResult[]>([]);
   
   const clientRef = useRef<MqttClient | null>(null);
 
@@ -150,81 +162,23 @@ export default function InspectMachine({ navigate, containerId }: InspectMachine
     }
   };
 
-  // Publish controls override to MQTT
-  const handlePublishOverride = (machineId: string, cmdType: "estop" | "reset" | "heat" | "vibe") => {
-    if (!clientRef.current || !clientRef.current.connected) {
-      alert("SCADA console is offline: MQTT client not connected.");
-      return;
-    }
-
-    const m = MACHINES.find(item => item.id === machineId);
-    if (!m) return;
-
-    let payload: Partial<TelemetryData> = {};
-    const defaultData = telemetry[machineId] || {
-      temp_ds: m.defaults.temp,
-      belt_speed: m.defaults.speed,
-      vibration: m.defaults.vibration,
-      humidity: 60.0
+  // Fetch RCA findings for the active machine
+  useEffect(() => {
+    const API_BASE = import.meta.env.VITE_API_BASE || "";
+    const fetchMachineRCA = () => {
+      fetch(`${API_BASE}/api/rca?machine_id=${activeMachineId}`)
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((data: RCAResult[]) => {
+          setRcaFindings(data || []);
+        })
+        .catch(() => {
+          setRcaFindings([]);
+        });
     };
-
-    switch (cmdType) {
-      case "estop":
-        payload = {
-          machine_id: machineId,
-          temp_ds: defaultData.temp_ds,
-          humidity: defaultData.humidity,
-          vibration: 0,
-          belt_speed: 0,
-          defect_count: 0,
-          fault: "EMERGENCY_STOP",
-          timestamp: new Date().toISOString()
-        };
-        break;
-      case "heat":
-        payload = {
-          machine_id: machineId,
-          temp_ds: 82.5,
-          humidity: defaultData.humidity,
-          vibration: defaultData.vibration,
-          belt_speed: defaultData.belt_speed,
-          defect_count: 2,
-          fault: "overheating",
-          timestamp: new Date().toISOString()
-        };
-        break;
-      case "vibe":
-        payload = {
-          machine_id: machineId,
-          temp_ds: defaultData.temp_ds,
-          humidity: defaultData.humidity,
-          vibration: 9.8,
-          belt_speed: defaultData.belt_speed,
-          defect_count: 3,
-          fault: "high_vibration",
-          timestamp: new Date().toISOString()
-        };
-        break;
-      case "reset":
-        payload = {
-          machine_id: machineId,
-          temp_ds: m.defaults.temp,
-          humidity: 60.0,
-          vibration: m.defaults.vibration,
-          belt_speed: m.defaults.speed,
-          defect_count: 0,
-          fault: null,
-          timestamp: new Date().toISOString()
-        };
-        break;
-    }
-
-    const topic = containerId 
-      ? `bebasqc/${containerId}/${m.suffix}`
-      : `bebasqc/${m.suffix}`;
-
-    clientRef.current.publish(topic, JSON.stringify(payload), { qos: 1 });
-  };
+    fetchMachineRCA();
+    const interval = setInterval(fetchMachineRCA, 10000);
+    return () => clearInterval(interval);
+  }, [activeMachineId]);
 
   const getMachineHealth = (id: string) => {
     const data = telemetry[id];
@@ -820,7 +774,7 @@ export default function InspectMachine({ navigate, containerId }: InspectMachine
           <button
             type="button"
             className="btn btn-outline"
-            onClick={() => setShowSimulator(true)}
+            onClick={openSimulator}
             style={{ backgroundColor: "#f59e0b", color: "#ffffff", borderColor: "#f59e0b" }}
           >
             🔌 Run IoT Simulator
@@ -1025,38 +979,50 @@ export default function InspectMachine({ navigate, containerId }: InspectMachine
             </div>
           </div>
 
-          {/* MQTT Controls Override Panel */}
-          <div className="scada-controls">
-            <h3 className="controls-title">Remote PLC Command overrides</h3>
-            <div className="controls-grid">
-              <button 
-                type="button" 
-                className="scada-btn btn-estop"
-                onClick={() => handlePublishOverride(activeMachineId, "estop")}
-              >
-                ⚠️ TRIPP E-STOP (HALT)
-              </button>
-              <button 
-                type="button" 
-                className="scada-btn btn-reset"
-                onClick={() => handlePublishOverride(activeMachineId, "reset")}
-              >
-                🔄 Clear Alerts & Reset PLC
-              </button>
-              <button 
-                type="button" 
-                className="scada-btn btn-inject"
-                onClick={() => handlePublishOverride(activeMachineId, "heat")}
-              >
-                🔥 Overheat Anomaly
-              </button>
-              <button 
-                type="button" 
-                className="scada-btn btn-inject"
-                onClick={() => handlePublishOverride(activeMachineId, "vibe")}
-              >
-                📳 Vibration Surge
-              </button>
+          {/* Machine RCA Findings Panel */}
+          <div className="scada-controls" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <h3 className="controls-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>Machine RCA Findings</span>
+              <span style={{ fontSize: "9px", padding: "2px 6px", borderRadius: "4px", backgroundColor: "#334155", color: "#f1f5f9" }}>
+                {rcaFindings.length} Events
+              </span>
+            </h3>
+            <div style={{ maxHeight: "180px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
+              {rcaFindings.length === 0 ? (
+                <div style={{ fontSize: "11px", color: "#475569", fontStyle: "italic", padding: "8px 0" }}>
+                  No RCA findings for this machine.
+                </div>
+              ) : (
+                rcaFindings.map((finding) => (
+                  <div key={finding.id} style={{
+                    backgroundColor: "rgba(30, 41, 59, 0.4)",
+                    border: "1px solid #1e293b",
+                    borderLeft: `3px solid ${{ high: "#ef4444", medium: "#f59e0b", low: "#10b981" }[finding.severity] || "#64748b"}`,
+                    borderRadius: "6px",
+                    padding: "8px 10px",
+                    fontSize: "11px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px"
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{
+                        fontSize: "8px", fontWeight: "bold", padding: "1px 4px", borderRadius: "3px",
+                        backgroundColor: { high: "rgba(239,68,68,0.12)", medium: "rgba(245,158,11,0.12)", low: "rgba(16,185,129,0.12)" }[finding.severity] || "#1e293b",
+                        color: { high: "#ef4444", medium: "#f59e0b", low: "#10b981" }[finding.severity] || "#94a3b8"
+                      }}>
+                        {finding.severity.toUpperCase()}
+                      </span>
+                      <span style={{ color: "#475569", fontSize: "9px" }}>
+                        {new Date(finding.created_at).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <div style={{ fontWeight: "bold", color: "#f1f5f9" }}>{finding.problem}</div>
+                    <div style={{ color: "#94a3b8" }}>Root Cause: {finding.cause}</div>
+                    <div style={{ color: "#38bdf8" }}>Mitigation: {finding.action}</div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -1103,18 +1069,6 @@ export default function InspectMachine({ navigate, containerId }: InspectMachine
         </div>
       </div>
 
-      {/* Simulator Drawer Panel overlay for dynamic data injection */}
-      <div className={`sim-drawer-overlay ${showSimulator ? "open" : ""}`} onClick={() => setShowSimulator(false)}>
-        <div className="sim-drawer-panel" onClick={(e) => e.stopPropagation()}>
-          <div className="sim-drawer-header">
-            <h3>IoT Edge Sensor Simulator</h3>
-            <button type="button" className="sim-drawer-close" onClick={() => setShowSimulator(false)}>✕ Close</button>
-          </div>
-          <div className="sim-drawer-body">
-            <Simulator containerId={containerId} isOverlay={true} />
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

@@ -5,9 +5,9 @@ import Dashboard from "./pages/Dashboard";
 import Simulator from "./pages/Simulator";
 import InspectMachine from "./pages/InspectMachine";
 import RCALog from "./pages/RCALog";
+import { SimulatorProvider, useSimulator } from "./SimulatorContext";
 
 // Persistent session: generate a stable container ID once and store it forever.
-// No 15-minute expiry — factory dashboards run 24/7.
 function getOrCreateContainerId(): string {
   const stored = localStorage.getItem("bebasqc_container_id");
   if (stored) return stored;
@@ -16,16 +16,41 @@ function getOrCreateContainerId(): string {
   return newId;
 }
 
-function App() {
+// ─── Global Simulator Drawer ───────────────────────────────────────────────
+// Rendered once at the App level so it stays mounted across all route changes.
+// The Simulator's MQTT client and running state are never destroyed by navigation.
+function GlobalSimulatorDrawer({ containerId }: { containerId: string }) {
+  const { isOpen, closeSimulator } = useSimulator();
+  return (
+    <div
+      className={`sim-drawer-overlay ${isOpen ? "open" : ""}`}
+      onClick={closeSimulator}
+    >
+      <div className="sim-drawer-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="sim-drawer-header">
+          <h3>IoT Edge Sensor Simulator</h3>
+          <button type="button" className="sim-drawer-close" onClick={closeSimulator}>
+            ✕ Close
+          </button>
+        </div>
+        <div className="sim-drawer-body">
+          {/* Always mounted — state persists across page changes */}
+          <Simulator containerId={containerId} isOverlay={true} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── App inner (needs access to SimulatorContext) ──────────────────────────
+function AppInner() {
   const [path, setPath] = useState(window.location.pathname);
   const [containerId, setContainerId] = useState<string>("");
   const [ready, setReady] = useState(false);
 
-  // Initialize session on mount — check URL param first (Telegram link-in), else use stored/new ID
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlContainerId = params.get("containerId");
-
     if (urlContainerId) {
       localStorage.setItem("bebasqc_container_id", urlContainerId);
       setContainerId(urlContainerId);
@@ -36,7 +61,6 @@ function App() {
     setReady(true);
   }, []);
 
-  // Routing — listen to browser back/forward
   useEffect(() => {
     const handlePopState = () => setPath(window.location.pathname);
     window.addEventListener("popstate", handlePopState);
@@ -48,7 +72,6 @@ function App() {
     setPath(newPath);
   };
 
-  // Loading guard — wait for containerId to be resolved from storage
   if (!ready) {
     return (
       <div className="prov-container">
@@ -64,10 +87,8 @@ function App() {
     );
   }
 
-  // Route switch
   const renderPage = () => {
     if (path === "/dashboard") return <Dashboard navigate={navigate} containerId={containerId} />;
-    if (path === "/simulator") return <Simulator containerId={containerId} />;
     if (path === "/inspect") return <InspectMachine navigate={navigate} containerId={containerId} />;
     if (path === "/rca") return <RCALog navigate={navigate} />;
     return <ControlHub navigate={navigate} />;
@@ -76,7 +97,18 @@ function App() {
   return (
     <>
       {renderPage()}
+      {/* Single persistent Simulator drawer — survives all route changes */}
+      <GlobalSimulatorDrawer containerId={containerId} />
     </>
+  );
+}
+
+// ─── Root App ──────────────────────────────────────────────────────────────
+function App() {
+  return (
+    <SimulatorProvider>
+      <AppInner />
+    </SimulatorProvider>
   );
 }
 

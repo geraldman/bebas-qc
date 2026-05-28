@@ -16,7 +16,7 @@ import {
   isVibrationAlert,
   type SensorReading,
 } from "../lib/thresholds";
-import Simulator from "./Simulator";
+import { useSimulator } from "../SimulatorContext";
 
 const MQTT_URL = import.meta.env.VITE_MQTT_URL || `ws://${window.location.hostname}:8000/mqtt`;
 const API_BASE = import.meta.env.VITE_API_BASE || "";
@@ -118,6 +118,8 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ navigate, containerId }: DashboardProps) {
+  const { openSimulator } = useSimulator();
+
   useEffect(() => {
     window.name = "bebasqc_dashboard";
   }, []);
@@ -138,7 +140,6 @@ export default function Dashboard({ navigate, containerId }: DashboardProps) {
   const [cvLoading, setCvLoading] = useState(false);
   const [cvError, setCvError] = useState<string | null>(null);
   const [monitorImage, setMonitorImage] = useState<string>("");
-  const [showSimulator, setShowSimulator] = useState(false);
   const [latestRCA, setLatestRCA] = useState<RCAResult | null>(null);
   const [showMqttInfo, setShowMqttInfo] = useState(false);
   const intervalRef = useRef<number | null>(null);
@@ -373,7 +374,7 @@ export default function Dashboard({ navigate, containerId }: DashboardProps) {
         <div className="header-actions">
           <button
             type="button"
-            onClick={() => setShowSimulator(true)}
+            onClick={openSimulator}
             className="btn btn-outline"
             style={{ marginRight: "4px" }}
           >
@@ -657,18 +658,6 @@ export default function Dashboard({ navigate, containerId }: DashboardProps) {
             <div>ESP32 publishes: temp_dht, humidity, temp_ds, belt_speed, vibration</div>
           </div>
         )}
-      </div>
-
-      <div className={`sim-drawer-overlay ${showSimulator ? "open" : ""}`} onClick={() => setShowSimulator(false)}>
-        <div className="sim-drawer-panel" onClick={(e) => e.stopPropagation()}>
-          <div className="sim-drawer-header">
-            <h3>IoT Edge Sensor Simulator</h3>
-            <button type="button" className="sim-drawer-close" onClick={() => setShowSimulator(false)}>✕ Close</button>
-          </div>
-          <div className="sim-drawer-body">
-            <Simulator containerId={containerId} isOverlay={true} />
-          </div>
-        </div>
       </div>
     </div>
   );
