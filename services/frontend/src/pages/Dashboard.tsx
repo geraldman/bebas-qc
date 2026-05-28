@@ -138,7 +138,7 @@ export default function Dashboard({ navigate, containerId }: DashboardProps) {
     return containerId ? `bebasqc/${containerId}/#` : "bebasqc/#";
   }, [containerId]);
 
-  const [source, setSource] = useState<"mock" | "mqtt">("mock");
+  const [source] = useState<"mock" | "mqtt">("mqtt");
   const [connected, setConnected] = useState(false);
   const [readingsByMachine, setReadingsByMachine] = useState<Record<string, SensorReading[]>>({});
   const [latestByMachine, setLatestByMachine] = useState<Record<string, SensorReading>>({});
@@ -421,16 +421,8 @@ export default function Dashboard({ navigate, containerId }: DashboardProps) {
           >
             {muted ? "Mute" : "Sound"}
           </button>
-          <div className="source-toggle">
-            <label htmlFor="source" className="label">
-              {source === "mock" ? "Mock Data" : "Live MQTT"}
-            </label>
-            <input
-              id="source"
-              type="checkbox"
-              checked={source === "mqtt"}
-              onChange={(e) => setSource(e.target.checked ? "mqtt" : "mock")}
-            />
+          <div className="source-toggle" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "13px", color: "#475569", fontWeight: "600" }}>Live Telemetry</span>
             <span className={connected ? "status-dot ok" : "status-dot"} />
           </div>
           <button

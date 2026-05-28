@@ -99,7 +99,7 @@ const randInRange = (range: number) => (Math.random() * 2 - 1) * range;
 
 export default function Simulator({ containerId, isOverlay = false }: SimulatorProps) {
   const [connected, setConnected] = useState(false);
-  const [publishing, setPublishing] = useState(false);
+  const [publishing, setPublishing] = useState(true);
   const [publishInterval, setPublishInterval] = useState(2000);
   const [logs, setLogs] = useState<Array<{ time: string; msg: string; type: string }>>([]);
   const [cliInput, setCliInput] = useState("");
