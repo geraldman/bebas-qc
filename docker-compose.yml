@@ -75,6 +75,7 @@ services:
     depends_on:
       - frontend
       - backend
+      - hivemq
     networks:
       - bebasqc_network
     restart: unless-stopped
