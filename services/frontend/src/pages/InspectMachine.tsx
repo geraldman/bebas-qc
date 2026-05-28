@@ -2,7 +2,14 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import mqtt, { type MqttClient } from "mqtt";
 import { useSimulator } from "../SimulatorContext";
 
-const MQTT_URL = import.meta.env.VITE_MQTT_URL || `ws://${window.location.hostname}:8000/mqtt`;
+const isLocalDev = window.location.hostname === "localhost" || 
+                    window.location.hostname === "127.0.0.1" || 
+                    (window.location.port !== "" && window.location.port !== "80" && window.location.port !== "443");
+const MQTT_URL = import.meta.env.VITE_MQTT_URL || (
+  isLocalDev
+    ? `ws://${window.location.hostname}:8000/mqtt`
+    : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/mqtt`
+);
 
 interface InspectMachineProps {
   navigate: (to: string) => void;
