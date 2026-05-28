@@ -388,9 +388,13 @@ export default function Dashboard({ navigate, containerId }: DashboardProps) {
             />
             <span className={connected ? "status-dot ok" : "status-dot"} />
           </div>
-          <a className="btn" href="/detect">
-            Inspect Product
-          </a>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => navigate("/inspect")}
+          >
+            🔍 Inspect Machine
+          </button>
         </div>
       </div>
 

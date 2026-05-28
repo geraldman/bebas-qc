@@ -3,6 +3,7 @@ import "./App.css";
 import ControlHub from "./pages/ControlHub";
 import Dashboard from "./pages/Dashboard";
 import Simulator from "./pages/Simulator";
+import InspectMachine from "./pages/InspectMachine";
 
 function App() {
   const [path, setPath] = useState(window.location.pathname);
@@ -222,6 +223,8 @@ function App() {
           <Dashboard navigate={navigate} containerId={containerId} />
         ) : path === "/simulator" ? (
           <Simulator containerId={containerId} />
+        ) : path === "/inspect" ? (
+          <InspectMachine navigate={navigate} containerId={containerId} />
         ) : (
           <ControlHub navigate={navigate} />
         )
