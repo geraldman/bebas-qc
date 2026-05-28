@@ -301,17 +301,17 @@ export default function InspectMachine({ navigate, containerId }: InspectMachine
         }
 
         .scada-canvas {
-          background: rgba(15, 23, 42, 0.9);
+          background: rgba(8, 12, 20, 0.95);
           border: 1px solid #1e293b;
           border-radius: 16px;
           padding: 24px;
-          box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.6);
+          box-shadow: inset 0 2px 8px 0 rgba(0, 0, 0, 0.8), 0 10px 30px rgba(0, 0, 0, 0.5);
           position: relative;
           display: flex;
           flex-direction: column;
           justify-content: center;
           align-items: center;
-          min-height: 480px;
+          min-height: 580px;
         }
 
         .canvas-label {
@@ -328,7 +328,7 @@ export default function InspectMachine({ navigate, containerId }: InspectMachine
         /* SVG Schematic Styles */
         .scada-svg {
           width: 100%;
-          max-width: 800px;
+          max-width: 960px;
           height: auto;
           overflow: visible;
         }
@@ -403,67 +403,141 @@ export default function InspectMachine({ navigate, containerId }: InspectMachine
         }
 
         .machine-node-text {
-          font-size: 10px;
+          font-size: 11px;
           font-weight: 700;
           fill: #f1f5f9;
+          letter-spacing: 0.5px;
         }
 
         .machine-node-sub {
-          font-size: 8px;
+          font-size: 9px;
+          font-weight: 500;
           fill: #64748b;
         }
 
         .machine-node-val {
-          font-size: 9px;
-          font-weight: 600;
+          font-size: 10px;
+          font-weight: 700;
           fill: #38bdf8;
+          transition: fill 0.3s;
         }
 
         /* SVG Animations */
         .animated-conveyor {
-          stroke-dasharray: 5, 5;
-          animation: conveyor-run 1s linear infinite;
+          stroke-dasharray: 6, 6;
+          animation: conveyor-run 0.6s linear infinite;
         }
         
         @keyframes conveyor-run {
-          to { stroke-dashoffset: -10; }
+          to { stroke-dashoffset: -12; }
         }
 
-        .animated-piston {
-          animation: piston-press 1.2s ease-in-out infinite alternate;
+        /* Continuous package flow animation */
+        @keyframes package-move {
+          0% { transform: translate(45px, 109px); opacity: 0; }
+          5% { opacity: 1; }
+          95% { opacity: 1; }
+          100% { transform: translate(395px, 109px); opacity: 0; }
+        }
+        .moving-package-1 {
+          animation: package-move 4s linear infinite;
+        }
+        .moving-package-2 {
+          animation: package-move 4s linear infinite;
+          animation-delay: 1.33s;
+        }
+        .moving-package-3 {
+          animation: package-move 4s linear infinite;
+          animation-delay: 2.66s;
         }
 
-        @keyframes piston-press {
-          0% { transform: translateY(0); }
-          20% { transform: translateY(0); }
-          60% { transform: translateY(12px); }
-          100% { transform: translateY(0); }
+        /* Moving bottles on Line 2 */
+        @keyframes bottle-move {
+          0% { transform: translate(45px, 250px); opacity: 0; }
+          5% { opacity: 1; }
+          95% { opacity: 1; }
+          100% { transform: translate(395px, 250px); opacity: 0; }
+        }
+        .moving-bottle-1 {
+          animation: bottle-move 4s linear infinite;
+        }
+        .moving-bottle-2 {
+          animation: bottle-move 4s linear infinite;
+          animation-delay: 1.33s;
+        }
+        .moving-bottle-3 {
+          animation: bottle-move 4s linear infinite;
+          animation-delay: 2.66s;
         }
 
-        .animated-arm {
-          transform-origin: 220px 105px;
-          animation: arm-label 2.5s ease-in-out infinite;
+        /* Rotating conveyor wheels */
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        .animated-wheel-1 {
+          animation: spin 1.5s linear infinite;
+          transform-origin: 80px 120px;
+        }
+        .animated-wheel-2 {
+          animation: spin 1.5s linear infinite;
+          transform-origin: 160px 120px;
         }
 
-        @keyframes arm-label {
-          0% { transform: rotate(0deg); }
-          40% { transform: rotate(-25deg); }
-          50% { transform: rotate(-25deg); }
-          70% { transform: rotate(0deg); }
-          100% { transform: rotate(0deg); }
+        /* Stamping Labeler piston head */
+        @keyframes labeler-press {
+          0%, 100% { transform: translateY(0); }
+          25% { transform: translateY(16px); }
+          35% { transform: translateY(16px); }
+          65% { transform: translateY(0); }
+        }
+        .animated-labeler-piston {
+          animation: labeler-press 1.33s cubic-bezier(0.4, 0, 0.2, 1) infinite;
         }
 
-        .animated-valve-drop {
+        /* Heating / Sealing bar */
+        @keyframes sealer-press {
+          0%, 100% { transform: translateY(0); fill: #475569; filter: none; }
+          30% { transform: translateY(16px); fill: #ef4444; filter: drop-shadow(0 0 5px #ef4444); }
+          45% { transform: translateY(16px); fill: #ef4444; filter: drop-shadow(0 0 5px #ef4444); }
+          75% { transform: translateY(0); fill: #475569; filter: none; }
+        }
+        .animated-sealer-piston {
+          animation: sealer-press 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        }
+
+        /* Pouring liquid dash-offset */
+        @keyframes liquid-stream {
+          to { stroke-dashoffset: -20; }
+        }
+        .animated-liquid-stream {
+          animation: liquid-stream 0.5s linear infinite;
+        }
+
+        /* Oscillating liquid level inside the tank */
+        @keyframes liquid-level {
+          0%, 100% { height: 18px; y: 181px; }
+          50% { height: 22px; y: 177px; }
+        }
+        .animated-liquid-level {
+          animation: liquid-level 4s ease-in-out infinite;
+        }
+
+        /* Dripping liquid for Line 2 Filler */
+        @keyframes fluid-drop-l2 {
+          0% { cy: 215; opacity: 0; }
+          15% { opacity: 1; }
+          80% { cy: 242; opacity: 1; }
+          85% { cy: 243; opacity: 0; }
+          100% { cy: 215; opacity: 0; }
+        }
+        .animated-valve-drop-l2 {
           fill: #38bdf8;
-          animation: fluid-drop 1.8s linear infinite;
+          animation: fluid-drop-l2 1.2s linear infinite;
         }
-
-        @keyframes fluid-drop {
-          0% { cy: 110; opacity: 0; }
-          20% { opacity: 1; }
-          70% { cy: 135; opacity: 1; }
-          75% { cy: 136; opacity: 0; }
-          100% { cy: 110; opacity: 0; }
+        .animated-valve-drop-l2-delayed {
+          fill: #38bdf8;
+          animation: fluid-drop-l2 1.2s linear infinite;
+          animation-delay: 0.6s;
         }
 
         /* Side Inspector Panel */
@@ -814,78 +888,116 @@ export default function InspectMachine({ navigate, containerId }: InspectMachine
 
             {/* FLOW LINES CONNECTING NODES */}
             {/* Line 1 Connectors */}
-            <path d="M 120 120 L 260 120" className="schematic-bg-line" />
-            <path d="M 120 120 L 260 120" className="schematic-flow-line flow-line1" />
-            <path d="M 260 120 L 380 120" className="schematic-bg-line" />
+            <path d="M 120 120 L 280 120" className="schematic-bg-line" />
+            <path d="M 120 120 L 280 120" className="schematic-flow-line flow-line1" />
+            <path d="M 280 120 L 400 120" className="schematic-bg-line" />
             
             {/* Line 2 Connectors */}
-            <path d="M 120 250 L 260 250" className="schematic-bg-line" />
-            <path d="M 120 250 L 260 250" className="schematic-flow-line flow-line2" />
-            <path d="M 260 250 L 380 250" className="schematic-bg-line" />
+            <path d="M 120 250 L 280 250" className="schematic-bg-line" />
+            <path d="M 120 250 L 280 250" className="schematic-flow-line flow-line2" />
+            <path d="M 280 250 L 400 250" className="schematic-bg-line" />
 
             {/* PIPELINES AND CONVEYORS */}
             {/* Line 1 Track */}
-            <rect x="50" y="117" width="350" height="6" fill="url(#conveyor-track)" rx="3" />
-            <line x1="50" y1="120" x2="400" y2="120" stroke="#475569" strokeWidth="1" strokeDasharray="5,5" className="animated-conveyor" />
+            <rect x="40" y="117" width="360" height="6" fill="url(#conveyor-track)" rx="3" />
+            <line x1="40" y1="120" x2="400" y2="120" stroke="#475569" strokeWidth="1" strokeDasharray="5,5" className="animated-conveyor" />
             
             {/* Line 2 Pipe */}
-            <rect x="50" y="247" width="350" height="6" fill="#1e293b" rx="2" />
-            
+            <rect x="40" y="246" width="360" height="8" fill="#1e293b" rx="2" stroke="#334155" strokeWidth="1" />
+            <line x1="40" y1="250" x2="400" y2="250" stroke="#f59e0b" strokeWidth="3" strokeDasharray="6,6" className="flow-line2" />
+
+            {/* ANIMATED PACKAGES AND BOTTLES (Drawn behind the nodes for semi-tunnel physical visual style) */}
+            {/* Line 1 Moving Packages */}
+            <g className="conveyor-packages">
+              <rect width="12" height="12" fill="#d97706" rx="2" className="moving-package-1" />
+              <rect width="12" height="12" fill="#d97706" rx="2" className="moving-package-2" />
+              <rect width="12" height="12" fill="#d97706" rx="2" className="moving-package-3" />
+            </g>
+
+            {/* Line 2 Moving Bottles */}
+            <g className="fluid-bottles">
+              <g className="moving-bottle-1">
+                {/* Bottle Shape */}
+                <rect x="-5" y="-12" width="10" height="12" fill="none" stroke="#94a3b8" strokeWidth="1" rx="1" />
+                <rect x="-2" y="-15" width="4" height="3" fill="none" stroke="#94a3b8" strokeWidth="1" />
+                {/* Glowing fluid fill */}
+                <rect x="-4" y="-7" width="8" height="6" fill="#f59e0b" rx="0.5" />
+              </g>
+              <g className="moving-bottle-2">
+                <rect x="-5" y="-12" width="10" height="12" fill="none" stroke="#94a3b8" strokeWidth="1" rx="1" />
+                <rect x="-2" y="-15" width="4" height="3" fill="none" stroke="#94a3b8" strokeWidth="1" />
+                <rect x="-4" y="-7" width="8" height="6" fill="#f59e0b" rx="0.5" />
+              </g>
+              <g className="moving-bottle-3">
+                <rect x="-5" y="-12" width="10" height="12" fill="none" stroke="#94a3b8" strokeWidth="1" rx="1" />
+                <rect x="-2" y="-15" width="4" height="3" fill="none" stroke="#94a3b8" strokeWidth="1" />
+                <rect x="-4" y="-7" width="8" height="6" fill="#f59e0b" rx="0.5" />
+              </g>
+            </g>
+
             {/* LINE 1 - STATION 1 (CONVEYOR) */}
             <g className={`machine-node ${activeMachineId === "LINE1_STN1" ? "active" : ""} health-${getMachineHealth("LINE1_STN1")}`} onClick={() => setActiveMachineId("LINE1_STN1")}>
-              <rect x="70" y="80" width="100" height="60" rx="10" className="machine-node-bg" />
-              <text x="120" y="98" textAnchor="middle" className="machine-node-text">L1 CONVEYOR</text>
-              <text x="120" y="108" textAnchor="middle" className="machine-node-sub">LINE1_STN1</text>
-              <text x="120" y="128" textAnchor="middle" className="machine-node-val">
+              <rect x="60" y="75" width="120" height="70" rx="12" className="machine-node-bg" fillOpacity={0.9} />
+              <text x="120" y="95" textAnchor="middle" className="machine-node-text">L1 CONVEYOR</text>
+              <text x="120" y="107" textAnchor="middle" className="machine-node-sub">LINE1_STN1</text>
+              <text x="120" y="132" textAnchor="middle" className="machine-node-val">
                 {telemetry.LINE1_STN1 ? `${telemetry.LINE1_STN1.belt_speed.toFixed(0)} items/m` : "OFFLINE"}
               </text>
               
-              {/* Conveyor mini-graphic */}
-              <circle cx="85" cy="120" r="4" fill="#64748b" />
-              <circle cx="155" cy="120" r="4" fill="#64748b" />
+              {/* Conveyor Spinning Wheels */}
+              <circle cx="80" cy="120" r="6" fill="none" stroke="#64748b" strokeWidth="2" strokeDasharray="3,3" className="animated-wheel-1" />
+              <circle cx="80" cy="120" r="2" fill="#64748b" />
+              <circle cx="160" cy="120" r="6" fill="none" stroke="#64748b" strokeWidth="2" strokeDasharray="3,3" className="animated-wheel-2" />
+              <circle cx="160" cy="120" r="2" fill="#64748b" />
             </g>
 
             {/* LINE 1 - STATION 2 (LABELER) */}
             <g className={`machine-node ${activeMachineId === "LINE1_STN2" ? "active" : ""} health-${getMachineHealth("LINE1_STN2")}`} onClick={() => setActiveMachineId("LINE1_STN2")}>
-              <rect x="230" y="80" width="100" height="60" rx="10" className="machine-node-bg" />
-              <text x="280" y="98" textAnchor="middle" className="machine-node-text">L1 LABELER</text>
-              <text x="280" y="108" textAnchor="middle" className="machine-node-sub">LINE1_STN2</text>
-              <text x="280" y="128" textAnchor="middle" className="machine-node-val">
+              <rect x="220" y="75" width="120" height="70" rx="12" className="machine-node-bg" fillOpacity={0.9} />
+              <text x="280" y="95" textAnchor="middle" className="machine-node-text">L1 LABELER</text>
+              <text x="280" y="107" textAnchor="middle" className="machine-node-sub">LINE1_STN2</text>
+              <text x="280" y="132" textAnchor="middle" className="machine-node-val">
                 {telemetry.LINE1_STN2 ? `${telemetry.LINE1_STN2.temp_ds.toFixed(1)}°C` : "OFFLINE"}
               </text>
               
-              {/* Labeler pneumatic head graphic */}
-              <rect x="275" y="60" width="10" height="20" fill="#475569" />
-              <rect x="270" y="76" width="20" height="4" fill="#94a3b8" className="animated-piston" />
+              {/* Labeler pneumatic head & stamping shaft */}
+              <rect x="275" y="45" width="10" height="30" fill="#475569" rx="1" />
+              <line x1="280" y1="70" x2="280" y2="92" stroke="#94a3b8" strokeWidth="3" className="animated-labeler-piston" />
+              <rect x="270" y="92" width="20" height="4" fill="#e2e8f0" rx="1" className="animated-labeler-piston" />
             </g>
 
             {/* LINE 2 - STATION 1 (FILLER) */}
             <g className={`machine-node ${activeMachineId === "LINE2_STN1" ? "active" : ""} health-${getMachineHealth("LINE2_STN1")}`} onClick={() => setActiveMachineId("LINE2_STN1")}>
-              <rect x="70" y="210" width="100" height="60" rx="10" className="machine-node-bg" />
-              <text x="120" y="228" textAnchor="middle" className="machine-node-text">L2 FILLER</text>
-              <text x="120" y="238" textAnchor="middle" className="machine-node-sub">LINE2_STN1</text>
-              <text x="120" y="258" textAnchor="middle" className="machine-node-val">
+              <rect x="60" y="215" width="120" height="70" rx="12" className="machine-node-bg" fillOpacity={0.9} />
+              <text x="120" y="235" textAnchor="middle" className="machine-node-text">L2 FILLER</text>
+              <text x="120" y="247" textAnchor="middle" className="machine-node-sub">LINE2_STN1</text>
+              <text x="120" y="272" textAnchor="middle" className="machine-node-val">
                 {telemetry.LINE2_STN1 ? `${telemetry.LINE2_STN1.temp_ds.toFixed(1)}°C` : "OFFLINE"}
               </text>
               
-              {/* Tank liquid drop graphic */}
-              <circle cx="120" cy="190" r="10" fill="none" stroke="#475569" strokeWidth="2" />
-              <line x1="120" y1="200" x2="120" y2="210" stroke="#64748b" strokeWidth="2" />
-              <circle cx="120" cy="205" r="2.5" className="animated-valve-drop" />
+              {/* Tank, liquid level, nozzle and dripping drops */}
+              <rect x="100" y="170" width="40" height="35" rx="4" fill="none" stroke="#64748b" strokeWidth="2" />
+              <rect x="102" width="36" fill="url(#tankGrad)" rx="2" className="animated-liquid-level" />
+              <rect x="117" y="205" width="6" height="10" fill="#475569" rx="1" />
+              
+              <line x1="120" y1="215" x2="120" y2="239" stroke="#38bdf8" strokeWidth="3" strokeDasharray="4,4" className="animated-liquid-stream" />
+              <circle cx="120" cy="215" r="2.5" className="animated-valve-drop-l2" />
+              <circle cx="120" cy="215" r="2.5" className="animated-valve-drop-l2-delayed" />
             </g>
 
             {/* LINE 2 - STATION 2 (SEALER) */}
             <g className={`machine-node ${activeMachineId === "LINE2_STN2" ? "active" : ""} health-${getMachineHealth("LINE2_STN2")}`} onClick={() => setActiveMachineId("LINE2_STN2")}>
-              <rect x="230" y="210" width="100" height="60" rx="10" className="machine-node-bg" />
-              <text x="280" y="228" textAnchor="middle" className="machine-node-text">L2 SEALER</text>
-              <text x="280" y="238" textAnchor="middle" className="machine-node-sub">LINE2_STN2</text>
-              <text x="280" y="258" textAnchor="middle" className="machine-node-val">
+              <rect x="220" y="215" width="120" height="70" rx="12" className="machine-node-bg" fillOpacity={0.9} />
+              <text x="280" y="235" textAnchor="middle" className="machine-node-text">L2 SEALER</text>
+              <text x="280" y="247" textAnchor="middle" className="machine-node-sub">LINE2_STN2</text>
+              <text x="280" y="272" textAnchor="middle" className="machine-node-val">
                 {telemetry.LINE2_STN2 ? `${telemetry.LINE2_STN2.vibration.toFixed(2)} m/s²` : "OFFLINE"}
               </text>
               
-              {/* Sealer graphic */}
-              <rect x="268" y="195" width="24" height="15" fill="#334155" />
-              <line x1="280" y1="202" x2="280" y2="210" stroke="#cbd5e1" strokeWidth="3" className="animated-piston" />
+              {/* Sealer cylinder structures and stamping press bar */}
+              <rect x="270" y="180" width="20" height="35" fill="#334155" rx="1" />
+              <line x1="280" y1="210" x2="280" y2="223" stroke="#cbd5e1" strokeWidth="3" className="animated-sealer-piston" />
+              <rect x="265" y="223" width="30" height="8" fill="#475569" rx="1" className="animated-sealer-piston" />
             </g>
 
             {/* HUD annotations */}
