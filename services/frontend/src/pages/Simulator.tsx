@@ -3,6 +3,7 @@ import mqtt, { type MqttClient } from "mqtt";
 
 interface SimulatorProps {
   containerId: string;
+  isOverlay?: boolean;
 }
 
 interface MachineState {
@@ -96,7 +97,7 @@ function getSensorBounds(sensor: "temperature" | "humidity" | "vibration" | "bel
 const clamp = (val: number, min: number, max: number) => Math.min(Math.max(val, min), max);
 const randInRange = (range: number) => (Math.random() * 2 - 1) * range;
 
-export default function Simulator({ containerId }: SimulatorProps) {
+export default function Simulator({ containerId, isOverlay = false }: SimulatorProps) {
   const [connected, setConnected] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [publishInterval, setPublishInterval] = useState(2000);
@@ -449,27 +450,29 @@ export default function Simulator({ containerId }: SimulatorProps) {
 
   return (
     <div className="simulator-page">
-      <div className="header-row">
-        <div>
-          <h2 className="title">IoT Sensor Edge Simulator</h2>
-          <p className="subtitle">Publish simulated line and station node telemetry to the sandbox container broker</p>
-        </div>
-        <div className="header-actions">
-          <a href="/" target="bebasqc_controlhub" className="btn btn-outline" style={{ marginRight: "4px" }}>
-            ← Control Hub
-          </a>
-          <a href="/dashboard" target="bebasqc_dashboard" className="btn btn-outline" style={{ marginRight: "4px" }}>
-            📊 View QC Dashboard
-          </a>
-          <div className="source-toggle">
-            <span className="label">Broker Status</span>
-            <span className={connected ? "status-dot ok" : "status-dot"} />
-            <span className="label" style={{ fontWeight: 600 }}>
-              {connected ? "Connected" : "Disconnected"}
-            </span>
+      {!isOverlay && (
+        <div className="header-row">
+          <div>
+            <h2 className="title">IoT Sensor Edge Simulator</h2>
+            <p className="subtitle">Publish simulated line and station node telemetry to the sandbox container broker</p>
+          </div>
+          <div className="header-actions">
+            <a href="/" target="bebasqc_controlhub" className="btn btn-outline" style={{ marginRight: "4px" }}>
+              ← Control Hub
+            </a>
+            <a href="/dashboard" target="bebasqc_dashboard" className="btn btn-outline" style={{ marginRight: "4px" }}>
+              📊 View QC Dashboard
+            </a>
+            <div className="source-toggle">
+              <span className="label">Broker Status</span>
+              <span className={connected ? "status-dot ok" : "status-dot"} />
+              <span className="label" style={{ fontWeight: 600 }}>
+                {connected ? "Connected" : "Disconnected"}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="sim-status-banner">
         <div>Broker WebSocket Address: <code>{MQTT_URL}</code></div>

@@ -66,7 +66,7 @@ func triggerAlert(containerID string, sensor models.SensorPayload, result models
 
 	n8nURL := os.Getenv("N8N_WEBHOOK_URL")
 	if n8nURL == "" {
-		n8nURL = "http://n8n:5678/webhook/smartvision/detection"
+		n8nURL = "http://n8n:5678/n8n/webhook/smartvision/detection"
 	}
 
 	alert := AlertPayload{

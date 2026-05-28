@@ -117,9 +117,10 @@ services:
     environment:
       - N8N_HOST=localhost
       - N8N_PORT=5678
-      - N8N_PROTOCOL=http
+      - N8N_PROTOCOL=https
+      - N8N_PATH=/n8n/
       - NODE_ENV=production
-      - WEBHOOK_URL=http://localhost:5678/
+      - WEBHOOK_URL=https://bebasqc.geraldmanurung.site/n8n/
       - GENERIC_TIMEZONE=Asia/Jakarta
       - N8N_BASIC_AUTH_ACTIVE=true
       - N8N_BASIC_AUTH_USER=admin
