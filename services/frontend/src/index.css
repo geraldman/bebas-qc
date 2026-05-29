@@ -1,17 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
 
 :root {
-  --text: #475569;
-  --text-h: #0f172a;
-  --bg: #f8fafc;
-  --border: #e2e8f0;
-  --code-bg: #eef2f7;
-  --accent: #0ea5e9;
-  --accent-bg: rgba(14, 165, 233, 0.12);
-  --accent-border: rgba(14, 165, 233, 0.45);
-  --social-bg: rgba(241, 245, 249, 0.7);
+  --text: #94a3b8;
+  --text-h: #f8fafc;
+  --bg: #060a13;
+  --border: #1e293b;
+  --code-bg: #0f172a;
+  --accent: #38bdf8;
+  --accent-bg: rgba(56, 189, 248, 0.08);
+  --accent-border: rgba(56, 189, 248, 0.3);
+  --social-bg: rgba(30, 41, 59, 0.7);
   --shadow:
-    rgba(15, 23, 42, 0.15) 0 20px 30px -18px, rgba(15, 23, 42, 0.08) 0 8px 12px -10px;
+    rgba(0, 0, 0, 0.4) 0 20px 30px -18px, rgba(0, 0, 0, 0.25) 0 8px 12px -10px;
 
   --sans: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
   --heading: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
@@ -19,7 +19,7 @@
 
   font: 17px/150% var(--sans);
   letter-spacing: 0.2px;
-  color-scheme: light;
+  color-scheme: dark;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
@@ -47,7 +47,12 @@
 
 body {
   margin: 0;
-  background: linear-gradient(160deg, #f8fafc 0%, #eef2ff 55%, #f8fafc 100%);
+  background-color: var(--bg);
+  background-image: 
+    linear-gradient(rgba(56, 189, 248, 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.015) 1px, transparent 1px);
+  background-size: 32px 32px;
+  color: var(--text);
 }
 
 h1,
