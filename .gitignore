@@ -1,5 +1,6 @@
 .env
 .env.*
+!.env.example
 
 # Node/Vite
 node_modules/
@@ -26,6 +27,7 @@ Thumbs.db
 # Build artifacts
 *.zip
 
-# Runtime data
+# Runtime data & SSL certs
 docker/hivemq/data/
 docker/hivemq/log/
+docker/certbot/

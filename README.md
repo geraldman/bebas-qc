@@ -197,8 +197,8 @@ The **n8n** service (`bebasqc_n8n`) receives webhook triggers from the Go backen
 ### 2. Access the n8n Dashboard
 1. Open **`http://localhost:5678`** in your browser (or `https://bebasqc.geraldmanurung.site/n8n/` in production).
 2. Log in with the default Basic Auth credentials defined in [`docker-compose.yml`](docker-compose.yml):
-   - **Username:** `admin`
-   - **Password:** `bebasqc123`
+   - **Username:** `admin` (or `N8N_BASIC_AUTH_USER` in `.env`)
+   - **Password:** `<your_N8N_BASIC_AUTH_PASSWORD_in_env>`
 
 ### 3. Import the Official Workflow (`SmartVision_RCA_Workflow.json`)
 A ready-to-use workflow file is included at [`docker/n8n/workflows/SmartVision_RCA_Workflow.json`](docker/n8n/workflows/SmartVision_RCA_Workflow.json):

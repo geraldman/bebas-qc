@@ -122,8 +122,8 @@ services:
       - WEBHOOK_URL=http://localhost:5678
       - GENERIC_TIMEZONE=Asia/Jakarta
       - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=admin
-      - N8N_BASIC_AUTH_PASSWORD=bebasqc123
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - CREDENTIALS_OVERWRITE_DATA={"postgres":{"host":"postgres","port":5432,"database":"${POSTGRES_DB}","user":"${POSTGRES_USER}","password":"${POSTGRES_PASSWORD}"},"telegramApi":{"accessToken":"${TELEGRAM_BOT_TOKEN}"}}
     volumes:
