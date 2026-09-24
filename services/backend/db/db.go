@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -11,14 +12,28 @@ import (
 )
 
 func Connect() (*sqlx.DB, error) {
-	dsn := fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		os.Getenv("POSTGRES_HOST"),
-		os.Getenv("POSTGRES_PORT"),
-		os.Getenv("POSTGRES_USER"),
-		os.Getenv("POSTGRES_PASSWORD"),
-		os.Getenv("POSTGRES_DB"),
-	)
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		host := os.Getenv("POSTGRES_HOST")
+		sslMode := os.Getenv("POSTGRES_SSLMODE")
+		if sslMode == "" {
+			if os.Getenv("USE_SUPABASE") == "true" || strings.Contains(host, "supabase.") {
+				sslMode = "require"
+			} else {
+				sslMode = "disable"
+			}
+		}
+
+		dsn = fmt.Sprintf(
+			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+			host,
+			os.Getenv("POSTGRES_PORT"),
+			os.Getenv("POSTGRES_USER"),
+			os.Getenv("POSTGRES_PASSWORD"),
+			os.Getenv("POSTGRES_DB"),
+			sslMode,
+		)
+	}
 
 	var db *sqlx.DB
 	var err error

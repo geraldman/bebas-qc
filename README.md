@@ -29,7 +29,7 @@ flowchart LR
     subgraph Core["Backend & Storage"]
         GO["Go Gin Backend + RCA Engine"]
         REDIS["Redis 7 Cache (10s TTL)"]
-        PG[("PostgreSQL 16 (Sensor & RCA DB)")]
+        PG[("PostgreSQL 16 / Supabase DB")]
         RF["Roboflow CV API"]
     end
 
@@ -121,9 +121,10 @@ cp .env.example .env
 Fill in the environment variables in `.env`:
 
 ```env
-# PostgreSQL Configuration
+# PostgreSQL Configuration (Local Docker)
+USE_SUPABASE=false
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
+POSTGRES_PASSWORD=your_secure_db_password
 POSTGRES_DB=bebasqc
 POSTGRES_HOST=postgres
 POSTGRES_PORT=5432
@@ -132,6 +133,8 @@ POSTGRES_PORT=5432
 BACKEND_PORT=8080
 TELEGRAM_BOT_USERNAME=BebasQcBot
 TELEGRAM_BOT_TOKEN=123456789:ABCDEF_your_telegram_bot_token
+N8N_BASIC_AUTH_USER=admin
+N8N_BASIC_AUTH_PASSWORD=your_n8n_password
 ROBOFLOW_API_KEY=your_roboflow_api_key
 N8N_WEBHOOK_URL=http://n8n:5678/webhook/smartvision/detection
 ```
@@ -156,23 +159,83 @@ docker compose up --build -d
 | `bebasqc_n8n` | `n8n` | `5678:5678` | n8n workflow engine for automated Telegram/WhatsApp alerting |
 | `bebasqc_certbot` | `certbot` | *(Internal)* | Automated Let's Encrypt SSL renewal every 12 hours |
 
-### 4. Useful Docker Commands
+---
 
-```bash
-# Stream logs from all services (or filter by backend / n8n)
-docker compose logs -f
-docker compose logs -f backend n8n
+## 🗄️ Database Migration Guide (Supabase ↔ Docker PostgreSQL)
 
-# Restart a specific service after config changes
-docker compose restart backend
+Whether you are migrating **away from Supabase to Docker PostgreSQL** or **setting up/keeping your database on Supabase**, follow the options below:
 
-# Stop all containers without deleting persistent volumes
-docker compose down
+### Option A: Migrate from Supabase to Docker PostgreSQL (Recommended for Docker Compose)
+1. **Switch `.env` to Docker PostgreSQL:**
+   Set `USE_SUPABASE=false` and `POSTGRES_HOST=postgres` in your `.env`. When `docker compose up -d` starts, the `bebasqc_postgres` container automatically executes [`docker/postgres/init.sql`](docker/postgres/init.sql) to create all required tables.
+2. **(Optional) Export & Import Existing Data from Supabase:**
+   If you have historical data in Supabase that you want to copy into the Docker PostgreSQL container:
+   ```bash
+   # 1. Dump data from your Supabase PostgreSQL URI
+   pg_dump "postgresql://postgres.[PROJECT_REF]:[YOUR_SUPABASE_DB_PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres" \
+     --data-only --table=public.sensor_readings --table=public.rca_results --table=public.telegram_subscriptions \
+     > supabase_backup.sql
 
-# Stop all containers AND wipe database volumes (re-initializes init.sql)
-docker compose down -v
-docker compose up --build -d
-```
+   # 2. Import the data into the running Docker PostgreSQL container
+   docker exec -i bebasqc_postgres psql -U postgres -d bebasqc < supabase_backup.sql
+   ```
+
+### Option B: Use or Migrate Schema on Supabase Cloud
+If you prefer to keep using **Supabase** as your database instead of the local Docker Postgres container:
+1. Open your **Supabase Dashboard** → **SQL Editor** → click **New Query**, paste the schema from [`docker/postgres/init.sql`](docker/postgres/init.sql) below, and click **Run**:
+   ```sql
+   CREATE TABLE IF NOT EXISTS sensor_readings (
+       id           SERIAL PRIMARY KEY,
+       machine_id   VARCHAR(50)  NOT NULL,
+       machine_type VARCHAR(50)  NOT NULL,
+       temperature  FLOAT        NOT NULL,
+       humidity     FLOAT        NOT NULL,
+       vibration    FLOAT        NOT NULL,
+       belt_speed   FLOAT        NOT NULL,
+       defect_count INT          DEFAULT 0,
+       fault        VARCHAR(100),
+       created_at   TIMESTAMPTZ  DEFAULT NOW()
+   );
+
+   CREATE TABLE IF NOT EXISTS rca_results (
+       id          SERIAL PRIMARY KEY,
+       machine_id  VARCHAR(50)  NOT NULL,
+       problem     TEXT         NOT NULL,
+       cause       TEXT         NOT NULL,
+       evidence    TEXT,
+       action      TEXT         NOT NULL,
+       severity    VARCHAR(20)  NOT NULL,
+       created_at  TIMESTAMPTZ  DEFAULT NOW()
+   );
+
+   CREATE TABLE IF NOT EXISTS alerts (
+       id          SERIAL PRIMARY KEY,
+       machine_id  VARCHAR(50) NOT NULL,
+       rca_id      INT         REFERENCES rca_results(id),
+       sent_to     VARCHAR(50),
+       sent_at     TIMESTAMPTZ DEFAULT NOW()
+   );
+
+   CREATE TABLE IF NOT EXISTS telegram_subscriptions (
+       container_id     VARCHAR(50) PRIMARY KEY,
+       telegram_chat_id BIGINT NOT NULL,
+       created_at       TIMESTAMPTZ DEFAULT NOW()
+   );
+
+   CREATE INDEX IF NOT EXISTS idx_sensor_machine_time ON sensor_readings (machine_id, created_at DESC);
+   CREATE INDEX IF NOT EXISTS idx_rca_machine_time ON rca_results (machine_id, created_at DESC);
+   ```
+2. In your `.env`, configure the Supabase PostgreSQL connection (found in **Supabase Dashboard → Project Settings → Database → Connection Pooler (Session mode)**):
+   ```env
+   USE_SUPABASE=true
+   POSTGRES_HOST=aws-0-ap-southeast-1.pooler.supabase.com
+   POSTGRES_PORT=5432
+   POSTGRES_USER=postgres.your_project_ref
+   POSTGRES_PASSWORD=your_supabase_db_password
+   POSTGRES_DB=postgres
+   POSTGRES_SSLMODE=require
+   ```
+   > [`services/backend/db/db.go`](services/backend/db/db.go) automatically enables `sslmode=require` whenever `USE_SUPABASE=true` or `POSTGRES_HOST` points to `supabase.com`.
 
 ---
 
@@ -181,37 +244,24 @@ docker compose up --build -d
 The **n8n** service (`bebasqc_n8n`) receives webhook triggers from the Go backend whenever the RCA engine detects an anomaly, looks up the user's `telegram_chat_id` in PostgreSQL, and dispatches real-time alerts to Telegram.
 
 ### 1. Create a Telegram Bot & Set Token
-1. Open Telegram and message **[@BotFather](https://t.me/BotFather)**.
-2. Send `/newbot`, follow the prompts, and copy your **HTTP API Token**.
-3. Add the token and username to `.env`:
+1. Open Telegram and message **[@BotFather](https://t.me/BotFather)** → send `/newbot` and copy your **HTTP API Token**.
+2. Add the token and username to `.env`:
    ```env
    TELEGRAM_BOT_USERNAME=BebasQcBot
    TELEGRAM_BOT_TOKEN=7123456789:AAHxyzYourBotTokenHere
    ```
-4. Recreate `n8n` and `backend` containers so the environment changes take effect:
+3. Recreate `n8n` and `backend` containers:
    ```bash
    docker compose up -d n8n backend
    ```
-   > **Note:** `CREDENTIALS_OVERWRITE_DATA` in [`docker-compose.yml`](docker-compose.yml) automatically injects your PostgreSQL credentials and `TELEGRAM_BOT_TOKEN` into n8n.
 
-### 2. Access the n8n Dashboard
-1. Open **`http://localhost:5678`** in your browser (or `https://bebasqc.geraldmanurung.site/n8n/` in production).
-2. Log in with the default Basic Auth credentials defined in [`docker-compose.yml`](docker-compose.yml):
+### 2. Access the n8n Dashboard & Import Workflow
+1. Open **`http://localhost:5678`** (or `https://bebasqc.geraldmanurung.site/n8n/` in production).
+2. Log in with your Basic Auth credentials:
    - **Username:** `admin` (or `N8N_BASIC_AUTH_USER` in `.env`)
    - **Password:** `<your_N8N_BASIC_AUTH_PASSWORD_in_env>`
-
-### 3. Import the Official Workflow (`SmartVision_RCA_Workflow.json`)
-A ready-to-use workflow file is included at [`docker/n8n/workflows/SmartVision_RCA_Workflow.json`](docker/n8n/workflows/SmartVision_RCA_Workflow.json):
-1. Inside n8n, click **Add Workflow** → click the **⋮** menu (top-right) → select **Import from File...**.
-2. Select **`docker/n8n/workflows/SmartVision_RCA_Workflow.json`**.
-3. The imported workflow contains two automated pipelines:
-   - **Pipeline 1 — Bot Subscription (`Telegram Trigger` → `Is Start Command?` → `Save Subscription` → `Confirm Link`)**: Captures `/start <container_id>` messages sent to the Telegram bot and stores `(container_id, telegram_chat_id)` in PostgreSQL (`telegram_subscriptions` table).
-   - **Pipeline 2 — RCA Webhook Dispatch (`SmartVision RCA INPUT` → `Query Telegram Subscription` → `Is Subscribed?` → `TELEGRAM ALERT`)**: Listens for `POST /webhook/smartvision/detection` payloads from the Go backend and sends formatted Markdown alerts to the subscribed Telegram user.
-
-### 4. Activate & Test End-to-End
-1. Toggle the workflow status switch in the top-right corner from **Inactive** to **Active**.
-2. Open the **Dashboard** (`http://localhost/dashboard`) and click **Connect Telegram Bot**, then press **Start** in Telegram.
-3. Open the **⚡ Simulator Drawer**, push **Temperature** above `90°C`, and receive the **🚨 SMARTVISION RCA ALERT 🚨** message on Telegram within seconds!
+3. Click **Add Workflow** → **⋮** menu (top-right) → **Import from File...** → select **`docker/n8n/workflows/SmartVision_RCA_Workflow.json`**.
+4. Toggle the workflow switch from **Inactive** to **Active**.
 
 ---
 ---
@@ -237,38 +287,20 @@ Saat membuka [https://bebasqc.geraldmanurung.site](https://bebasqc.geraldmanurun
 Karena sistem bekerja secara *real-time* berbasis data MQTT, Anda dapat menyimulasikan mesin pabrik langsung dari browser:
 1. Klik tombol **⚡ Simulator** di pojok kanan atas layar (membuka *Global Simulator Drawer*) atau buka halaman `/simulator`.
 2. Pastikan status simulator adalah **RUNNING / PUBLISHING** (terhubung ke broker MQTT via WebSocket).
-3. Pilih stasiun mesin yang ingin dikontrol:
-   - `LINE1_STN1` (Conveyor & Packaging Line 1)
-   - `LINE1_STN2` (Labeling & Stamping Line 1)
-   - `LINE2_STN1` (Liquid Filling Line 2)
-   - `LINE2_STN2` (Thermal Sealing Line 2)
-4. **Simulasi Normal vs. Fault (Kerusakan):**
-   - Dalam kondisi normal, suhu (`temperature`), getaran (`vibration`), tekanan (`pressure`), dan kecepatan (`speed`) berada di rentang aman.
-   - **Cara Memicu AI RCA:** Geser *slider* ke nilai ekstrem (misalnya naikkan **Temperature > 85°C** untuk memicu *Overheat*, atau naikkan **Vibration > 8.0 mm/s** untuk memicu *Bearing Wear / Mechanical Looseness*), atau gunakan preset skenario anomali pada simulator.
-   - *Catatan Hemat Cloud (Billing Guard):* Simulator otomatis jeda (*sleep*) jika tab tidak aktif atau tidak ada interaksi selama 5 menit. Klik **Resume Simulation** jika ingin melanjutkan.
+3. Pilih stasiun mesin yang ingin dikontrol (`LINE1_STN1`, `LINE1_STN2`, `LINE2_STN1`, `LINE2_STN2`).
+4. **Cara Memicu AI RCA:** Geser *slider* ke nilai ekstrem (misalnya naikkan **Temperature > 85°C** untuk memicu *Overheat*, atau naikkan **Vibration > 8.0 mm/s** untuk memicu *Bearing Wear / Mechanical Looseness*), atau gunakan preset skenario anomali.
 
 ### 3. Memantau Grafik & Computer Vision di Dashboard (`/dashboard`)
-Buka halaman **Live Telemetry Dashboard** untuk memantau kondisi lini produksi:
-1. **Pilih Lini & Stasiun:** Klik tab mesin (`LINE1_STN1`, `LINE1_STN2`, dll.) untuk melihat grafik *real-time* (Temperature, Vibration, Pressure, Speed).
-2. **Kartu "Latest RCA Finding":** Menampilkan temuan anomali terbaru secara otomatis setiap 20 detik lengkap dengan tingkat keparahan (*High / Medium / Low*), penyebab (*Root Cause*), dan rekomendasi tindakan.
-3. **Inspeksi Visual AI (Roboflow Computer Vision):**
-   - Pada panel kamera inspeksi visual, klik tombol **Inspect Frame / Run CV** untuk mengirim gambar produk dari lini berjalan ke model deteksi cacat **Roboflow**.
-   - Hasil deteksi (*bounding box* & skor *confidence*) akan ditampilkan langsung di layar.
-4. **Berlangganan Notifikasi Telegram:**
-   - Klik tombol **Connect Telegram Bot** di bagian konfigurasi alert untuk membuka bot Telegram resmi (`@BebasQcBot` atau sesuai konfigurasi `.env`) dan ketik `/start` agar Anda menerima pesan peringatan instan setiap kali anomali terdeteksi.
+1. **Pilih Lini & Stasiun:** Klik tab mesin untuk melihat grafik *real-time* (Temperature, Vibration, Pressure, Speed).
+2. **Kartu "Latest RCA Finding":** Menampilkan temuan anomali terbaru secara otomatis setiap 20 detik lengkap dengan *Root Cause* dan rekomendasi tindakan.
+3. **Inspeksi Visual AI (Roboflow Computer Vision):** Klik tombol **Inspect Frame / Run CV** untuk mendeteksi cacat produk menggunakan model **Roboflow**.
+4. **Berlangganan Notifikasi Telegram:** Klik **Connect Telegram Bot** dan ketik `/start` di Telegram untuk menerima notifikasi peringatan instan.
 
 ### 4. Inspeksi Visual Mekanis di SCADA Synoptics (`/inspect`)
-Buka halaman **SCADA Inspector** untuk melihat visualisasi fisik pabrik secara langsung:
-1. **Animasi SCADA Real-Time:**
-   - **Line 1:** Roda gigi konveyor berputar mengikuti kecepatan (`speed`), kotak paket berjalan di atas sabuk, dan lengan piston *Labeler* bergerak menempelkan label.
-   - **Line 2:** Tangki cairan (*Filler*) menampilkan level cairan yang berosilasi dengan tetesan pengisian ke botol kaca, diikuti pemanas *Sealer* pneumatik yang menyala merah saat menyegel.
-2. **Klik Node Stasiun pada Diagram SVG:** Klik langsung pada gambar stasiun di skema SCADA untuk memfilter metrik *gauge* di panel kanan, melihat riwayat **Machine RCA Findings** khusus mesin tersebut, serta memantau **Live Station Alarms** di bagian bawah.
+Klik langsung pada node stasiun di skema animasi SVG SCADA untuk memfilter metrik *gauge* di panel kanan, melihat riwayat **Machine RCA Findings** khusus mesin tersebut, serta memantau **Live Station Alarms** di bagian bawah.
 
 ### 5. Mengaudit Riwayat Kerusakan di RCA Log (`/rca`)
-Buka halaman **RCA Audit Log** untuk menelusuri seluruh hasil analisis AI:
-1. **Ringkasan Status:** Lihat jumlah total insiden, *Critical (High)*, *Warning (Medium)*, dan *Low* pada indikator di bagian atas.
-2. **Pencarian & Filter:** Ketik kata kunci di kolom pencarian (`bearing`, `overheat`, `pressure`) atau filter berdasarkan mesin (`LINE1_STN1`, dsb.) dan tingkat keparahan (`High`, `Medium`, `Low`).
-3. **Detail Bukti & Rekomendasi:** Klik pada salah satu kartu RCA untuk membuka detail lengkap yang mencakup **Problem**, **Root Cause**, **Sensor Evidence** (data mentah database), dan **Recommended Action**.
+Cari berdasarkan kata kunci (`bearing`, `overheat`, `pressure`), filter berdasarkan mesin atau tingkat keparahan (`High`, `Medium`, `Low`), dan klik kartu RCA untuk melihat **Sensor Evidence** (data mentah database) beserta **Recommended Action**.
 
 ---
 
@@ -286,97 +318,131 @@ cp .env.example .env
 Isi konfigurasi variabel di dalam `.env`:
 
 ```env
-# PostgreSQL Configuration
+# Konfigurasi PostgreSQL (Docker Lokal)
+USE_SUPABASE=false
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
+POSTGRES_PASSWORD=password_db_anda
 POSTGRES_DB=bebasqc
 POSTGRES_HOST=postgres
 POSTGRES_PORT=5432
 
-# Backend & External Integrations
+# Backend & Integrasi Eksternal
 BACKEND_PORT=8080
 TELEGRAM_BOT_USERNAME=BebasQcBot
-TELEGRAM_BOT_TOKEN=123456789:ABCDEF_your_telegram_bot_token
-ROBOFLOW_API_KEY=your_roboflow_api_key
+TELEGRAM_BOT_TOKEN=123456789:ABCDEF_token_bot_telegram_anda
+N8N_BASIC_AUTH_USER=admin
+N8N_BASIC_AUTH_PASSWORD=password_n8n_anda
+ROBOFLOW_API_KEY=api_key_roboflow_anda
 N8N_WEBHOOK_URL=http://n8n:5678/webhook/smartvision/detection
 ```
 
 ### 2. Menjalankan Seluruh Container
-Jalankan perintah berikut di direktori utama proyek untuk mem-build dan menyalakan semua container di *background*:
 
 ```bash
-docker compose up --build -d
-```
-
-### 3. Daftar Container & Port Mapping
-
-| Nama Container | Service | Port Host → Container | Deskripsi Fungsi |
-| :--- | :--- | :--- | :--- |
-| `bebasqc_nginx` | `nginx` | `80:80`, `443:443` | Reverse proxy utama, SSL, routing `/api` & WebSocket `/mqtt` |
-| `bebasqc_frontend` | `frontend` | `3003:88` | Aplikasi React/Vite SPA (di-serve oleh Nginx internal) |
-| `bebasqc_backend` | `backend` | `8085:8080` | Go Gin REST API, MQTT Subscriber, & AI RCA Engine |
-| `bebasqc_postgres` | `postgres` | `5432:5432` | Database PostgreSQL 16 (otomatis menjalankan [`init.sql`](docker/postgres/init.sql)) |
-| `bebasqc_redis` | `redis` | `6379:6379` | Redis 7 Cache untuk pembacaan sensor kecepatan tinggi |
-| `bebasqc_hivemq` | `hivemq` | `1883:1883`, `8000:8000` | Broker MQTT (TCP `1883` untuk Backend, WS `8000` untuk Browser) |
-| `bebasqc_n8n` | `n8n` | `5678:5678` | Mesin workflow otomasi untuk pengiriman alert Telegram/WhatsApp |
-| `bebasqc_certbot` | `certbot` | *(Internal)* | Perpanjangan otomatis sertifikat SSL Let's Encrypt setiap 12 jam |
-
-### 4. Perintah Docker Berguna (Troubleshooting & Maintenance)
-
-```bash
-# Melihat log real-time dari semua layanan (atau spesifik backend/n8n)
-docker compose logs -f
-docker compose logs -f backend n8n
-
-# Me-restart satu layanan setelah mengubah konfigurasi
-docker compose restart backend
-
-# Menghentikan seluruh container tanpa menghapus data
-docker compose down
-
-# Menghentikan container DAN mereset ulang database PostgreSQL dari awal (init.sql)
-docker compose down -v
 docker compose up --build -d
 ```
 
 ---
 
+## 🗄️ Panduan Migrasi Database (Dari Supabase ke Docker PostgreSQL atau Tetap di Supabase)
+
+Jika sebelumnya Anda masih menggunakan **Supabase**, Anda memiliki **2 pilihan** cara migrasi:
+
+### Opsi 1: Pindah Penuh dari Supabase ke Docker PostgreSQL (Direkomendasikan)
+Dengan menggunakan container `bebasqc_postgres` bawaan Docker Compose, Anda tidak lagi bergantung pada kuota/koneksi luar Supabase:
+1. **Ubah Konfigurasi `.env`:**
+   Pastikan di file `.env` Anda mengatur:
+   ```env
+   USE_SUPABASE=false
+   POSTGRES_HOST=postgres
+   POSTGRES_PORT=5432
+   POSTGRES_USER=postgres
+   POSTGRES_PASSWORD=password_db_anda
+   POSTGRES_DB=bebasqc
+   ```
+2. **Inisialisasi Skema Otomatis:**
+   Saat Anda menjalankan `docker compose up -d`, container `bebasqc_postgres` akan **secara otomatis** mengeksekusi file [`docker/postgres/init.sql`](docker/postgres/init.sql) dan membuat keempat tabel (`sensor_readings`, `rca_results`, `alerts`, `telegram_subscriptions`).
+   *(Jika container postgres sudah terlanjur dibuat sebelumnya dan ingin di-reset ulang agar membaca `init.sql`, jalankan `docker compose down -v && docker compose up -d`).*
+3. **(Opsional) Memindahkan Isi Data Lama dari Supabase ke Docker Postgres:**
+   Jika Anda ingin memindahkan riwayat data yang sudah ada di Supabase ke dalam Docker PostgreSQL lokal/VM:
+   ```bash
+   # 1. Export (dump) data dari Supabase menggunakan Connection URI Supabase Anda
+   pg_dump "postgresql://postgres.[PROJECT_REF]:[PASSWORD_SUPABASE]@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres" \
+     --data-only --table=public.sensor_readings --table=public.rca_results --table=public.telegram_subscriptions \
+     > backup_supabase.sql
+
+   # 2. Import data tersebut ke dalam container bebasqc_postgres
+   docker exec -i bebasqc_postgres psql -U postgres -d bebasqc < backup_supabase.sql
+   ```
+
+### Opsi 2: Tetap Menggunakan Database Cloud Supabase (Migrasi Skema Tabel ke Supabase)
+Jika Anda masih ingin menggunakan **Supabase Cloud** sebagai database utama untuk Go Backend dan n8n:
+1. Buka **Supabase Dashboard** → menu **SQL Editor** → klik **New Query**.
+2. Salin seluruh isi SQL dari [`docker/postgres/init.sql`](docker/postgres/init.sql) berikut lalu klik **Run**:
+   ```sql
+   CREATE TABLE IF NOT EXISTS sensor_readings (
+       id           SERIAL PRIMARY KEY,
+       machine_id   VARCHAR(50)  NOT NULL,
+       machine_type VARCHAR(50)  NOT NULL,
+       temperature  FLOAT        NOT NULL,
+       humidity     FLOAT        NOT NULL,
+       vibration    FLOAT        NOT NULL,
+       belt_speed   FLOAT        NOT NULL,
+       defect_count INT          DEFAULT 0,
+       fault        VARCHAR(100),
+       created_at   TIMESTAMPTZ  DEFAULT NOW()
+   );
+
+   CREATE TABLE IF NOT EXISTS rca_results (
+       id          SERIAL PRIMARY KEY,
+       machine_id  VARCHAR(50)  NOT NULL,
+       problem     TEXT         NOT NULL,
+       cause       TEXT         NOT NULL,
+       evidence    TEXT,
+       action      TEXT         NOT NULL,
+       severity    VARCHAR(20)  NOT NULL,
+       created_at  TIMESTAMPTZ  DEFAULT NOW()
+   );
+
+   CREATE TABLE IF NOT EXISTS alerts (
+       id          SERIAL PRIMARY KEY,
+       machine_id  VARCHAR(50) NOT NULL,
+       rca_id      INT         REFERENCES rca_results(id),
+       sent_to     VARCHAR(50),
+       sent_at     TIMESTAMPTZ DEFAULT NOW()
+   );
+
+   CREATE TABLE IF NOT EXISTS telegram_subscriptions (
+       container_id     VARCHAR(50) PRIMARY KEY,
+       telegram_chat_id BIGINT NOT NULL,
+       created_at       TIMESTAMPTZ DEFAULT NOW()
+   );
+
+   CREATE INDEX IF NOT EXISTS idx_sensor_machine_time ON sensor_readings (machine_id, created_at DESC);
+   CREATE INDEX IF NOT EXISTS idx_rca_machine_time ON rca_results (machine_id, created_at DESC);
+   ```
+3. Ambil informasi **Connection Pooler (Session mode, Port 5432)** di **Supabase Dashboard → Project Settings → Database**, lalu masukkan ke `.env` Anda:
+   ```env
+   USE_SUPABASE=true
+   POSTGRES_HOST=aws-0-ap-southeast-1.pooler.supabase.com
+   POSTGRES_PORT=5432
+   POSTGRES_USER=postgres.id_project_supabase_anda
+   POSTGRES_PASSWORD=password_database_supabase_anda
+   POSTGRES_DB=postgres
+   POSTGRES_SSLMODE=require
+   ```
+   > **Catatan:** Kode [`services/backend/db/db.go`](services/backend/db/db.go) sudah mendukung deteksi otomatis `sslmode=require` ketika `USE_SUPABASE=true` atau ketika `POSTGRES_HOST` mengarah ke domain `supabase.com` (atau Anda juga dapat langsung mengisi variabel `DATABASE_URL=postgresql://...`).
+
+---
+
 ## 🤖 Panduan Konfigurasi & Menjalankan n8n (Telegram Alert Automation)
 
-Layanan **n8n** (`bebasqc_n8n`) bertugas menerima *webhook* dari Go Backend setiap kali mesin RCA mendeteksi anomali, mencocokkan `container_id` pengguna dengan `telegram_chat_id` di PostgreSQL, lalu mengirimkan pesan peringatan ke Telegram operator.
-
-### 1. Membuat Bot Telegram & Mengatur Token
-1. Buka aplikasi Telegram dan cari **[@BotFather](https://t.me/BotFather)**.
-2. Kirim perintah `/newbot`, tentukan nama serta username bot (contoh: `BebasQcBot`).
-3. Salin **HTTP API Token** yang diberikan oleh BotFather, lalu masukkan ke dalam file `.env`:
-   ```env
-   TELEGRAM_BOT_USERNAME=BebasQcBot
-   TELEGRAM_BOT_TOKEN=7123456789:AAHxyzYourBotTokenHere
-   ```
-4. Restart container `n8n` dan `backend` agar token terbaca:
-   ```bash
-   docker compose up -d n8n backend
-   ```
-   > **Info:** Di dalam [`docker-compose.yml`](docker-compose.yml), variabel `CREDENTIALS_OVERWRITE_DATA` sudah dikonfigurasi agar n8n secara otomatis mengenali koneksi database `postgres` dan `TELEGRAM_BOT_TOKEN` dari `.env`.
-
-### 2. Login ke Dashboard n8n
-1. Buka browser dan akses **`http://localhost:5678`** (atau `https://bebasqc.geraldmanurung.site/n8n/` di server produksi).
-2. Masukkan kredensial *Basic Auth* default (sesuai konfigurasi di [`docker-compose.yml`](docker-compose.yml)):
-   - **Username:** `admin`
-   - **Password:** `bebasqc123`
-
-### 3. Import File Workflow Resmi (`SmartVision_RCA_Workflow.json`)
-Proyek ini sudah menyediakan template workflow n8n siap pakai di [`docker/n8n/workflows/SmartVision_RCA_Workflow.json`](docker/n8n/workflows/SmartVision_RCA_Workflow.json):
-1. Di halaman utama n8n, klik **Add Workflow** (atau klik ikon menu **⋮** di pojok kanan atas) → pilih **Import from File...**.
-2. Pilih file **`docker/n8n/workflows/SmartVision_RCA_Workflow.json`**.
-3. Anda akan melihat 2 jalur workflow otomatis:
-   - **Jalur 1 — Pendaftaran Bot (`Telegram Trigger` → `Is Start Command?` → `Save Subscription` → `Confirm Link`)**: Menangkap pesan `/start <container_id>` dari pengguna di Telegram dan menyimpan pasangan `container_id` dan `telegram_chat_id` ke tabel `telegram_subscriptions` di PostgreSQL.
-   - **Jalur 2 — Pengiriman Alert RCA (`SmartVision RCA INPUT` Webhook → `Query Telegram Subscription` → `Is Subscribed?` → `TELEGRAM ALERT`)**: Menerima HTTP `POST` di endpoint `/webhook/smartvision/detection` dari Go Backend saat terjadi anomali dan mengirimkan rincian *Problem*, *Root Cause*, *Severity*, serta *Recommended Action* ke Telegram pengguna.
-
-### 4. Mengaktifkan Workflow & Menguji Alert
-1. Klik tombol toggle **Inactive → Active** di pojok kanan atas kanvas n8n agar webhook *Production URL* aktif mendengarkan request.
-2. Buka **Dashboard** (`http://localhost/dashboard`), klik tombol **Connect Telegram Bot**, lalu tekan **Start** di Telegram.
-3. Buka **⚡ Simulator Drawer**, naikkan **Temperature** ke `95°C` atau **Vibration** ke `9.5 mm/s`, dan pesan **🚨 SMARTVISION RCA ALERT 🚨** akan langsung masuk ke Telegram Anda!
+1. **Buat Bot Telegram di [@BotFather](https://t.me/BotFather):** Kirim `/newbot`, salin token-nya ke `TELEGRAM_BOT_TOKEN` di `.env`, lalu jalankan `docker compose up -d n8n backend`.
+2. **Login ke Dashboard n8n (`http://localhost:5678`):**
+   - **Username:** `admin` (atau sesuai `N8N_BASIC_AUTH_USER` di `.env`)
+   - **Password:** `<sesuai_N8N_BASIC_AUTH_PASSWORD_di_env>`
+3. **Import File Workflow Resmi:** Klik **Add Workflow** → ikon **⋮** (pojok kanan atas) → **Import from File...** → pilih [`docker/n8n/workflows/SmartVision_RCA_Workflow.json`](docker/n8n/workflows/SmartVision_RCA_Workflow.json).
+4. **Aktifkan Workflow:** Ubah toggle **Inactive → Active** di pojok kanan atas kanvas n8n.
 
 ---
 
