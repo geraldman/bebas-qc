@@ -39,7 +39,7 @@ Karena sistem bekerja secara *real-time* berbasis data MQTT, Anda dapat menyimul
 4. **Simulasi Normal vs. Fault (Kerusakan):**
    - Dalam kondisi normal, suhu (`temperature`), getaran (`vibration`), tekanan (`pressure`), dan kecepatan (`speed`) berada di rentang aman.
    - **Cara Memicu AI RCA:** Geser *slider* ke nilai ekstrem (misalnya naikkan **Temperature > 85°C** untuk memicu *Overheat*, atau naikkan **Vibration > 8.0 mm/s** untuk memicu *Bearing Wear / Mechanical Looseness*), atau gunakan preset skenario anomali pada simulator.
-   -*Catatan Hemat的资源 (Billing Guard):* Simulator otomatis jeda (*sleep*) jika tab tidak aktif atau tidak ada interaksi selama 5 menit. Klik **Resume Simulation** jika ingin melanjutkan.
+   - *Catatan Hemat Cloud (Billing Guard):* Simulator otomatis jeda (*sleep*) jika tab tidak aktif atau tidak ada interaksi selama 5 menit. Klik **Resume Simulation** jika ingin melanjutkan.
 
 ---
 
@@ -78,13 +78,119 @@ Buka halaman **RCA Audit Log** untuk menelusuri seluruh hasil analisis AI:
 
 ---
 
-## ✨ Fitur Utama Sistem
+## 🐳 Panduan Menjalankan Docker (Full-Stack Setup)
 
-- **🎛️ Control Hub (`/`)**: Portal kendali utama dengan diagram topologi aliran data SVG interaktif dan metrik efisiensi lini produksi.
-- **📊 Live Telemetry Dashboard (`/dashboard`)**: Grafik sensor MQTT *real-time*, kartu RCA terbaru, proxy kamera Computer Vision Roboflow, dan integrasi Telegram Bot.
-- **🏭 Interactive SCADA Inspector (`/inspect`)**: Diagram sinoptik SVG animasi presisi tinggi dengan log alarm dan panel diagnostik per mesin.
-- **🔍 AI Root Cause Analysis Audit Log (`/rca`)**: Pencarian teks penuh, filter multi-kriteria, *auto-refresh* 15 detik, dan kartu diagnostik yang dapat diperluas.
-- **⚡ Edge IoT Telemetry Simulator (`/simulator`)**: Publisher paket MQTT langsung dari browser lengkap dengan pengaman *idle sleep* 5 menit dan batas sesi 30 menit.
+Seluruh ekosistem **Bebas QC** terdiri dari **8 layanan container** yang didefinisikan di dalam [`docker-compose.yml`](docker-compose.yml).
+
+### 1. Persiapan File `.env`
+Salin template `.env.example` menjadi `.env`:
+
+```bash
+cp .env.example .env
+```
+
+Isi konfigurasi variabel di dalam `.env`:
+
+```env
+# PostgreSQL Configuration
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=bebasqc
+POSTGRES_HOST=postgres
+POSTGRES_PORT=5432
+
+# Backend & External Integrations
+BACKEND_PORT=8080
+TELEGRAM_BOT_USERNAME=BebasQcBot
+TELEGRAM_BOT_TOKEN=123456789:ABCDEF_your_telegram_bot_token
+ROBOFLOW_API_KEY=your_roboflow_api_key
+N8N_WEBHOOK_URL=http://n8n:5678/webhook/smartvision/detection
+```
+
+### 2. Menjalankan Seluruh Container
+Jalankan perintah berikut di direktori utama proyek untuk mem-build dan menyalakan semua container di *background*:
+
+```bash
+docker compose up --build -d
+```
+
+### 3. Daftar Container & Port Mapping
+Setelah berjalan, Anda dapat memeriksa status seluruh container dengan `docker compose ps`:
+
+| Nama Container | Service | Port Host → Container | Deskripsi Fungsi |
+| :--- | :--- | :--- | :--- |
+| `bebasqc_nginx` | `nginx` | `80:80`, `443:443` | Reverse proxy utama, SSL, routing `/api` & WebSocket `/mqtt` |
+| `bebasqc_frontend` | `frontend` | `3003:88` | Aplikasi React/Vite SPA (di-serve oleh Nginx internal) |
+| `bebasqc_backend` | `backend` | `8085:8080` | Go Gin REST API, MQTT Subscriber, & AI RCA Engine |
+| `bebasqc_postgres` | `postgres` | `5432:5432` | Database PostgreSQL 16 (otomatis menjalankan [`init.sql`](docker/postgres/init.sql)) |
+| `bebasqc_redis` | `redis` | `6379:6379` | Redis 7 Cache untuk pembacaan sensor kecepatan tinggi |
+| `bebasqc_hivemq` | `hivemq` | `1883:1883`, `8000:8000` | Broker MQTT (TCP `1883` untuk Backend, WS `8000` untuk Browser) |
+| `bebasqc_n8n` | `n8n` | `5678:5678` | Mesin workflow otomasi untuk pengiriman alert Telegram/WhatsApp |
+| `bebasqc_certbot` | `certbot` | *(Internal)* | Perpanjangan otomatis sertifikat SSL Let's Encrypt setiap 12 jam |
+
+### 4. Perintah Docker Berguna (Troubleshooting & Maintenance)
+
+```bash
+# Melihat log real-time dari semua layanan (atau spesifik backend/n8n)
+docker compose logs -f
+docker compose logs -f backend n8n
+
+# Me-restart satu layanan setelah mengubah konfigurasi
+docker compose restart backend
+
+# Menghentikan seluruh container tanpa menghapus data
+docker compose down
+
+# Menghentikan container DAN mereset ulang database PostgreSQL dari awal (init.sql)
+docker compose down -v
+docker compose up --build -d
+```
+
+---
+
+## 🤖 Panduan Konfigurasi & Menjalankan n8n (Telegram Alert Automation)
+
+Layanan **n8n** (`bebasqc_n8n`) bertugas menerima *webhook* dari Go Backend setiap kali mesin RCA mendeteksi anomali, mencocokkan `container_id` pengguna dengan `telegram_chat_id` di PostgreSQL, lalu mengirimkan pesan peringatan ke Telegram operator.
+
+### 1. Membuat Bot Telegram & Mengatur Token
+1. Buka aplikasi Telegram dan cari **[@BotFather](https://t.me/BotFather)**.
+2. Kirim perintah `/newbot`, tentukan nama serta username bot (contoh: `BebasQcBot`).
+3. Salin **HTTP API Token** yang diberikan oleh BotFather, lalu masukkan ke dalam file `.env`:
+   ```env
+   TELEGRAM_BOT_USERNAME=BebasQcBot
+   TELEGRAM_BOT_TOKEN=7123456789:AAHxyzYourBotTokenHere
+   ```
+4. Restart container `n8n` dan `backend` agar token terbaca:
+   ```bash
+   docker compose up -d n8n backend
+   ```
+   > **Info:** Di dalam [`docker-compose.yml`](docker-compose.yml), variabel `CREDENTIALS_OVERWRITE_DATA` sudah dikonfigurasi agar n8n secara otomatis mengenali koneksi database `postgres` dan `TELEGRAM_BOT_TOKEN` dari `.env`.
+
+### 2. Login ke Dashboard n8n
+1. Buka browser dan akses **`http://localhost:5678`** (atau `https://bebasqc.geraldmanurung.site/n8n/` di server produksi).
+2. Masukkan kredensial *Basic Auth* default (sesuai konfigurasi di [`docker-compose.yml`](docker-compose.yml)):
+   - **Username:** `admin`
+   - **Password:** `bebasqc123`
+
+### 3. Import File Workflow Resmi (`SmartVision_RCA_Workflow.json`)
+Proyek ini sudah menyediakan template workflow n8n siap pakai di [`docker/n8n/workflows/SmartVision_RCA_Workflow.json`](docker/n8n/workflows/SmartVision_RCA_Workflow.json):
+1. Di halaman utama n8n, klik **Add Workflow** (atau klik ikon menu **⋮** di pojok kanan atas).
+2. Pilih **Import from File...**.
+3. Pilih file **`docker/n8n/workflows/SmartVision_RCA_Workflow.json`** dari komputer Anda.
+4. Anda akan melihat 2 jalur workflow otomatis:
+   - **Jalur 1 — Pendaftaran Bot (`Telegram Trigger` → `Is Start Command?` → `Save Subscription` → `Confirm Link`)**:
+     Menangkap pesan `/start <container_id>` dari pengguna di Telegram, lalu menyimpan pasangan `container_id` dan `telegram_chat_id` ke tabel `telegram_subscriptions` di PostgreSQL.
+   - **Jalur 2 — Pengiriman Alert RCA (`SmartVision RCA INPUT` Webhook → `Query Telegram Subscription` → `Is Subscribed?` → `TELEGRAM ALERT`)**:
+     Menerima HTTP `POST` di endpoint `/webhook/smartvision/detection` dari Go Backend saat terjadi anomali, mencari `telegram_chat_id` di database, dan mengirimkan rincian *Problem*, *Root Cause*, *Severity*, serta *Recommended Action* ke Telegram pengguna.
+
+### 4. Mengaktifkan Workflow & Menguji Alert
+1. Pastikan setiap node (`Postgres` dan `Telegram`) di dalam kanvas n8n tidak menampilkan tanda seru merah. Jika diminta memilih credential, pilih credential **Postgres connection** (`host: postgres`, `db: bebasqc`) dan **Telegram Bot API**.
+2. Klik tombol toggle **Inactive → Active** di pojok kanan atas kanvas n8n agar webhook *Production URL* aktif mendengarkan request.
+3. **Cara Menguji End-to-End:**
+   - Buka **Dashboard** (`http://localhost/dashboard`), lalu klik tombol **Connect Telegram Bot**.
+   - Aplikasi Telegram akan terbuka dan mengirim `/start <container_id>`. Bot akan membalas: `✅ Link Successful!`.
+   - Buka **⚡ Simulator Drawer**, naikkan **Temperature** ke `95°C` atau **Vibration** ke `9.5 mm/s`.
+   - Dalam beberapa detik, Go Backend (`services/backend/mqtt/alert.go`) akan memicu webhook n8n dan Anda akan menerima pesan **🚨 SMARTVISION RCA ALERT 🚨** di Telegram!
 
 ---
 
@@ -152,67 +258,6 @@ flowchart LR
 | `GET` | `/readings/:machine_id` | Mengambil riwayat pembacaan sensor mesin terbaru (di-cache di Redis selama 10 detik) |
 | `GET` | `/api/vision/frame` | Mengambil sampel gambar kamera lini produksi untuk inspeksi visual |
 | `POST` | `/api/vision/roboflow` | Mengirim frame gambar ke Roboflow Object Detection API dan mengembalikan hasil prediksi |
-
----
-
-## 🚀 Instalasi & Menjalankan di Lokal
-
-### Prasyarat
-
-- **Docker & Docker Compose** (direkomendasikan untuk menjalankan seluruh layanan sekaligus)
-- **Go 1.22+** & **Node.js 20+** (opsional, jika ingin menjalankan backend/frontend tanpa Docker)
-
-### 1. Konfigurasi Environment Variable
-
-Salin file `.env.example` menjadi `.env`:
-
-```bash
-cp .env.example .env
-```
-
-Sesuaikan nilai variabel di dalam `.env`:
-
-```env
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_DB=bebasqc
-POSTGRES_HOST=postgres
-POSTGRES_PORT=5432
-BACKEND_PORT=8080
-
-TELEGRAM_BOT_USERNAME=BebasQcBot
-ROBOFLOW_API_KEY=your_roboflow_key
-```
-
-### 2. Menjalankan Full Stack dengan Docker Compose
-
-```bash
-docker compose up --build -d
-```
-
-Setelah seluruh container berjalan, akses layanan melalui browser:
-
-- **Aplikasi Web Utama (via Nginx)**: `http://localhost`
-- **Frontend Langsung**: `http://localhost:3000`
-- **Backend API Health Check**: `http://localhost:8080/api/health`
-- **HiveMQ WebSocket Broker**: `ws://localhost:8000/mqtt`
-- **n8n Workflow UI**: `http://localhost:5678`
-
-### 3. Menjalankan Secara Terpisah (Local Dev Mode)
-
-**Backend (Go):**
-```bash
-cd services/backend
-go mod download
-go run ./cmd/main.go
-```
-
-**Frontend (Vite):**
-```bash
-cd services/frontend
-npm install
-npm run dev
-```
 
 ---
 
